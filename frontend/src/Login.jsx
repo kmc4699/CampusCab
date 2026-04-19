@@ -45,9 +45,9 @@ function Login({ onLoginSuccess }) {
     setMessage('');
 
     if (mode === 'register') {
-      // USER STORY 1, TEST 1: Validate .ac.nz email
-      if (!email.endsWith('.ac.nz')) {
-        setMessage("Validation error: You must use a valid university .ac.nz email address.");
+      // USER STORY 1, TEST 1: Validate autuni.ac.nz email
+      if (!email.endsWith('@autuni.ac.nz')) {
+        setMessage("Validation error: You must use a valid aut university .ac.nz email address.");
         return;
       }
       try {
