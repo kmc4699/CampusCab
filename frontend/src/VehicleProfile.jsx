@@ -20,7 +20,7 @@ function VehicleProfile() {
 
       const vehicleData = { make, model, licensePlate };
       
-      // This sends the data to the Firestore database!
+      // This sends the data to your new Firestore database!
       await setDoc(doc(db, "vehicles", user.uid), vehicleData);
       
       setMessage("Vehicle details saved successfully!");
