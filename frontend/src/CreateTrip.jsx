@@ -111,7 +111,7 @@ function CreateTrip() {
         <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#ffffff', border: '2px solid #007bff', borderRadius: '8px', textAlign: 'left' }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#007bff' }}>Live Trip Feed View</h4>
           <p style={{ margin: '5px 0' }}><strong>Route:</strong> {recentTrip.origin} ➔ {recentTrip.destination}</p>
-          <p style={{ margin: '5px 0' }}><strong>Departs:</strong> {new Date(recentTrip.departureTime).toLocaleString()}</p>
+          <p style={{ margin: '5px 0' }}><strong>Departs:</strong> {new Date(recentTrip.departureTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
           <p style={{ margin: '5px 0', color: '#28a745', fontWeight: 'bold' }}>{recentTrip.seats} Seats Available</p>
         </div>
       )}
