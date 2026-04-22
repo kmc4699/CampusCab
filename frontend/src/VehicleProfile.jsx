@@ -19,10 +19,10 @@ function VehicleProfile() {
       if (!user) return; // Safety check
 
       const vehicleData = { make, model, licensePlate };
-      
+
       // This sends the data to your new Firestore database!
       await setDoc(doc(db, "vehicles", user.uid), vehicleData);
-      
+
       setMessage("Vehicle details saved successfully!");
       setSavedVehicle(vehicleData); // Stores it to show on the profile
     } catch (error) {
@@ -35,44 +35,44 @@ function VehicleProfile() {
       <h3>🚗 Add Vehicle Details</h3>
       <form onSubmit={handleSave}>
         <div style={{ marginBottom: '10px' }}>
-          <input 
-            type="text" 
-            placeholder="Make (e.g., Toyota)" 
-            value={make} 
-            onChange={(e) => setMake(e.target.value)} 
-            required 
-            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }} 
+          <input
+            type="text"
+            placeholder="Make (e.g., Toyota)"
+            value={make}
+            onChange={(e) => setMake(e.target.value)}
+            required
+            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
           />
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <input 
-            type="text" 
-            placeholder="Model (e.g., Prius)" 
-            value={model} 
-            onChange={(e) => setModel(e.target.value)} 
-            required 
-            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }} 
+          <input
+            type="text"
+            placeholder="Model (e.g., Prius)"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            required
+            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
           />
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <input 
-            type="text" 
-            placeholder="License Plate (Required)" 
-            value={licensePlate} 
-            onChange={(e) => setLicensePlate(e.target.value)} 
-            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }} 
+          <input
+            type="text"
+            placeholder="License Plate (Required)"
+            value={licensePlate}
+            onChange={(e) => setLicensePlate(e.target.value)}
+            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
           />
         </div>
-        
-        <button 
-          type="submit" 
-          disabled={isButtonDisabled} 
-          style={{ 
-            padding: '10px 20px', 
-            backgroundColor: isButtonDisabled ? '#cccccc' : '#28a745', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '5px', 
+
+        <button
+          type="submit"
+          disabled={isButtonDisabled}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: isButtonDisabled ? '#cccccc' : '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
             cursor: isButtonDisabled ? 'not-allowed' : 'pointer',
             width: '100%'
           }}

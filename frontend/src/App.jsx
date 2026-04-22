@@ -17,8 +17,8 @@ function App() {
           <VehicleProfile />
           <CreateTrip />
 
-          <button 
-            onClick={() => setIsAuthenticated(false)} 
+          <button
+            onClick={() => setIsAuthenticated(false)}
             style={{ padding: '10px 20px', marginTop: '30px', cursor: 'pointer', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', width: '100%' }}
           >
             Log Out

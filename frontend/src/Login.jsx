@@ -10,7 +10,7 @@ function Login({ onLoginSuccess }) {
   const [emailFocus, setEmailFocus] = useState(false);
   const [passFocus, setPassFocus] = useState(false);
 
-  
+
   useEffect(() => {
     const prev = {
       bodyMargin: document.body.style.margin,
@@ -346,7 +346,7 @@ function Login({ onLoginSuccess }) {
         )}
       </div>
 
-      
+
     </div>
   );
 }
