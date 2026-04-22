@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Login from './Login';
-import VehicleProfile from './VehicleProfile'; 
-import CreateTrip from './CreateTrip'; 
+import VehicleProfile from './VehicleProfile';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -12,10 +11,9 @@ function App() {
         <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', textAlign: 'center', width: '400px' }}>
           <h2>CampusCab Dashboard</h2>
           <p style={{ color: '#555' }}>Welcome! You are securely logged in.</p>
-          
-          {/* We added the Vehicle Profile feature right here*/}
+
+          {/* We added the Vehicle Profile feature right here */}
           <VehicleProfile />
-          <CreateTrip />
 
           <button
             onClick={() => setIsAuthenticated(false)}
