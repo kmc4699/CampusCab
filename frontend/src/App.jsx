@@ -3,8 +3,6 @@ import Login from './Login';
 import VehicleProfile from './VehicleProfile';
 import CreateTrip from './CreateTrip';
 import DriverDashboard from './pages/DriverDashboard';
-import PassengerDashboard from './pages/PassengerDashboard';
-import AdminDashboard from './pages/AdminDashboard';
 
 const dashboardOptions = [
   {
@@ -111,6 +109,19 @@ function DashboardShell({ title, subtitle, onBack, onLogout, children }) {
   );
 }
 
+function DashboardPlaceholder({ role }) {
+  return (
+    <div style={placeholderCardStyle}>
+      <span style={placeholderBadgeStyle}>UI Placeholder</span>
+      <h2 style={placeholderTitleStyle}>{role} dashboard</h2>
+      <p style={placeholderCopyStyle}>
+        This view has not been built yet. The selector is here so the lecturer can choose which dashboard they
+        want to inspect during the demo.
+      </p>
+    </div>
+  );
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedRole, setSelectedRole] = useState('');
@@ -155,11 +166,11 @@ function App() {
     return (
       <DashboardShell
         title="Passenger Dashboard"
-        subtitle="Preview the student rider experience with active trips, bookings, and travel updates."
+        subtitle="Selection entry for the passenger side of CampusCab."
         onBack={() => setSelectedRole('')}
         onLogout={handleLogout}
       >
-        <PassengerDashboard />
+        <DashboardPlaceholder role="Passenger" />
       </DashboardShell>
     );
   }
@@ -167,11 +178,11 @@ function App() {
   return (
     <DashboardShell
       title="Admin Dashboard"
-      subtitle="Show the operations view with system health, moderation tasks, and campus-wide activity."
+      subtitle="Selection entry for the admin side of CampusCab."
       onBack={() => setSelectedRole('')}
       onLogout={handleLogout}
     >
-      <AdminDashboard />
+      <DashboardPlaceholder role="Admin" />
     </DashboardShell>
   );
 }
@@ -389,6 +400,38 @@ const surfaceCardStyle = {
   padding: '8px',
   boxShadow: '0 20px 40px rgba(15, 23, 42, 0.08)',
   overflow: 'hidden',
+};
+
+const placeholderCardStyle = {
+  padding: '32px',
+  borderRadius: '28px',
+  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  border: '1px solid rgba(148, 163, 184, 0.22)',
+  boxShadow: '0 20px 40px rgba(15, 23, 42, 0.08)',
+};
+
+const placeholderBadgeStyle = {
+  display: 'inline-flex',
+  padding: '8px 12px',
+  borderRadius: '999px',
+  backgroundColor: 'rgba(15, 23, 42, 0.08)',
+  color: '#1e293b',
+  fontSize: '0.8rem',
+  fontWeight: 800,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+};
+
+const placeholderTitleStyle = {
+  margin: '16px 0 10px',
+  color: '#0f172a',
+  fontSize: '1.8rem',
+};
+
+const placeholderCopyStyle = {
+  color: '#52607a',
+  lineHeight: 1.7,
+  maxWidth: '620px',
 };
 
 export default App;
