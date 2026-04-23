@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import Login from './Login';
 import VehicleProfile from './VehicleProfile';
 import CreateTrip from './CreateTrip';
@@ -122,6 +124,72 @@ function DashboardPlaceholder({ role }) {
   );
 }
 
+function DriverExperience() {
+  const [vehicle, setVehicle] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'vehicles', user.uid));
+        if (snap.exists()) {
+          setVehicle(snap.data());
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={placeholderCardStyle}>
+        <span style={placeholderBadgeStyle}>Loading</span>
+        <h2 style={placeholderTitleStyle}>Checking your driver profile…</h2>
+        <p style={placeholderCopyStyle}>One moment while we load your saved vehicle details from Firebase.</p>
+      </div>
+    );
+  }
+
+  if (!vehicle) {
+    return (
+      <div style={dashboardStackStyle}>
+        <div style={placeholderCardStyle}>
+          <span style={placeholderBadgeStyle}>Driver Setup Required</span>
+          <h2 style={placeholderTitleStyle}>Finish setting up your driver account</h2>
+          <p style={placeholderCopyStyle}>
+            Before you can publish a trip, add the vehicle passengers will be riding in. Your details are saved to
+            your account so you only do this once.
+          </p>
+        </div>
+        <section style={surfaceCardStyle}>
+          <VehicleProfile onSaved={(data) => setVehicle(data)} />
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div style={dashboardStackStyle}>
+      <section style={surfaceCardStyle}>
+        <VehicleProfile initialVehicle={vehicle} onSaved={(data) => setVehicle(data)} />
+      </section>
+      <section style={surfaceCardStyle}>
+        <CreateTrip />
+      </section>
+      <section style={surfaceCardStyle}>
+        <DriverDashboard />
+      </section>
+    </div>
+  );
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedRole, setSelectedRole] = useState('');
@@ -147,17 +215,7 @@ function App() {
         onBack={() => setSelectedRole('')}
         onLogout={handleLogout}
       >
-        <div style={dashboardStackStyle}>
-          <section style={surfaceCardStyle}>
-            <VehicleProfile />
-          </section>
-          <section style={surfaceCardStyle}>
-            <CreateTrip />
-          </section>
-          <section style={surfaceCardStyle}>
-            <DriverDashboard />
-          </section>
-        </div>
+        <DriverExperience />
       </DashboardShell>
     );
   }
