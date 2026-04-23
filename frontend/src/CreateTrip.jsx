@@ -1,11 +1,25 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { db, auth, firebaseReady } from './firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { buttons, colors, inputs, pills, radius, shadows, typography } from './theme';
 
+function useIsDesktop(breakpoint = 860) {
+  const query = `(min-width: ${breakpoint}px)`;
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const handler = (e) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [query]);
+  return isDesktop;
+}
+
 function Field({ label, helper, children }) {
   return (
-    <div style={{ marginBottom: '16px', textAlign: 'left' }}>
+    <div style={{ textAlign: 'left' }}>
       <label style={inputs.label}>{label}</label>
       {children}
       {helper && <p style={inputs.helper}>{helper}</p>}
@@ -71,6 +85,7 @@ function CreateTrip() {
   const [message, setMessage] = useState('');
   const [recentTrip, setRecentTrip] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -102,7 +117,7 @@ function CreateTrip() {
           status: 'active',
         };
 
-        setMessage("Demo mode: Trip preview updated locally.");
+        setMessage('Demo mode: Trip preview updated locally.');
         setRecentTrip(tripData);
         return;
       }
@@ -134,21 +149,24 @@ function CreateTrip() {
   };
 
   const hasError = message.startsWith('Error');
+  const twoColumns = isDesktop
+    ? 'repeat(2, minmax(0, 1fr))'
+    : 'repeat(auto-fit, minmax(150px, 1fr))';
 
   return (
-    <div style={{ padding: '32px', textAlign: 'left' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+    <div style={{ padding: '22px', textAlign: 'left' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
         <span style={{ ...pills.base, ...pills.info }}>
-          <span aria-hidden="true">🛣️</span> New Trip
+          <span aria-hidden="true">🛣️</span> New trip
         </span>
       </div>
       <h2 style={{ ...typography.h2, margin: '10px 0 6px' }}>Publish a trip</h2>
-      <p style={{ ...typography.body, margin: '0 0 22px' }}>
-        Let passengers find your ride by setting the route, time, and how many seats are free.
+      <p style={{ ...typography.body, margin: '0 0 18px' }}>
+        Let passengers find your ride by setting the route, time, and seats.
       </p>
 
-      <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: twoColumns, gap: '12px' }}>
           <Field label="Origin">
             <StyledSelect value={origin} onChange={(e) => setOrigin(e.target.value)}>
               <option value="North Shore">North Shore</option>
@@ -167,32 +185,33 @@ function CreateTrip() {
           </Field>
         </div>
 
-        <Field label="Departure date & time" helper="Must be in the future.">
-          <StyledInput
-            type="datetime-local"
-            value={departureTime}
-            onChange={(e) => setDepartureTime(e.target.value)}
-            required
-          />
-        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: twoColumns, gap: '12px' }}>
+          <Field label="Departure date & time" helper="Must be in the future.">
+            <StyledInput
+              type="datetime-local"
+              value={departureTime}
+              onChange={(e) => setDepartureTime(e.target.value)}
+              required
+            />
+          </Field>
 
-        <Field label="Available seats" helper="How many passengers can you take?">
-          <StyledInput
-            type="number"
-            min="1"
-            value={seats}
-            onChange={(e) => setSeats(e.target.value)}
-            required
-          />
-        </Field>
+          <Field label="Available seats" helper="How many passengers can you take?">
+            <StyledInput
+              type="number"
+              min="1"
+              value={seats}
+              onChange={(e) => setSeats(e.target.value)}
+              required
+            />
+          </Field>
+        </div>
 
         <button
           type="submit"
           disabled={isSubmitting}
           style={{
-            ...buttons.primary,
-            width: '100%',
-            marginTop: '6px',
+            ...buttons.accent,
+            marginTop: '4px',
             opacity: isSubmitting ? 0.7 : 1,
             cursor: isSubmitting ? 'wait' : 'pointer',
           }}
@@ -204,10 +223,11 @@ function CreateTrip() {
       {message && (
         <p
           style={{
-            marginTop: '16px',
+            marginTop: '14px',
             padding: '10px 14px',
             borderRadius: radius.md,
             fontWeight: 600,
+            fontSize: '0.88rem',
             color: hasError ? colors.danger : colors.success,
             backgroundColor: hasError ? colors.dangerSoft : colors.successSoft,
           }}
@@ -219,24 +239,36 @@ function CreateTrip() {
       {recentTrip && (
         <div
           style={{
-            marginTop: '22px',
-            padding: '18px 20px',
+            marginTop: '18px',
+            padding: '16px 18px',
             borderRadius: radius.lg,
             background: 'linear-gradient(135deg, rgba(29, 78, 216, 0.08), rgba(15, 118, 110, 0.06))',
             border: `1px solid ${colors.border}`,
             boxShadow: shadows.soft,
           }}
         >
-          <div style={{ ...typography.eyebrow, color: colors.info, marginBottom: '10px' }}>
-            Live trip feed view
+          <div style={{ ...typography.eyebrow, color: colors.info, marginBottom: '8px' }}>
+            Live trip feed
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}
+          >
             <div>
-              <div style={{ ...typography.h3, marginBottom: '6px' }}>
+              <div style={{ ...typography.h3, marginBottom: '4px' }}>
                 {recentTrip.origin} → {recentTrip.destination}
               </div>
-              <div style={{ color: colors.textSubtle, fontSize: '0.92rem' }}>
-                Departs {new Date(recentTrip.departureTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+              <div style={{ color: colors.textSubtle, fontSize: '0.86rem' }}>
+                Departs{' '}
+                {new Date(recentTrip.departureTime).toLocaleString([], {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}
               </div>
             </div>
             <span style={{ ...pills.base, ...pills.success }}>

@@ -5,7 +5,7 @@ import { buttons, colors, inputs, pills, radius, shadows, typography } from './t
 
 function Field({ label, helper, children }) {
   return (
-    <div style={{ marginBottom: '18px', textAlign: 'left' }}>
+    <div style={{ textAlign: 'left' }}>
       <label style={inputs.label}>{label}</label>
       {children}
       {helper && <p style={inputs.helper}>{helper}</p>}
@@ -64,91 +64,31 @@ function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
     }
   };
 
-  const user = auth.currentUser;
   const hasError = message.startsWith('Error');
 
   return (
-    <div
-      style={{
-        padding: compact ? '24px' : '32px',
-        textAlign: 'left',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+    <div style={{ padding: '22px', textAlign: 'left' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
         <span style={{ ...pills.base, ...pills.accent }}>
           <span aria-hidden="true">🚗</span> Vehicle
         </span>
-        {savedVehicle && !compact && (
-          <span style={{ ...pills.base, ...pills.success }}>Saved</span>
-        )}
+        {savedVehicle && !compact && <span style={{ ...pills.base, ...pills.success }}>Saved</span>}
       </div>
 
       <h2 style={{ ...typography.h2, margin: '10px 0 6px' }}>
         {initialVehicle ? 'Update your vehicle' : 'Tell us about your ride'}
       </h2>
-      <p style={{ ...typography.body, margin: '0 0 20px' }}>
-        Passengers see these details when deciding whether to request a seat. Make sure your plate is
-        accurate so they can find you at pickup.
+      <p style={{ ...typography.body, margin: '0 0 18px' }}>
+        Passengers see these details when deciding whether to book a seat.
       </p>
 
-      {user?.email && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '10px 14px',
-            borderRadius: radius.md,
-            backgroundColor: colors.surfaceMuted,
-            border: `1px solid ${colors.border}`,
-            marginBottom: '22px',
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              width: '34px',
-              height: '34px',
-              borderRadius: '50%',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: colors.accentSoft,
-              color: colors.accent,
-              fontWeight: 800,
-            }}
-          >
-            {user.email.slice(0, 1).toUpperCase()}
-          </span>
-          <div style={{ lineHeight: 1.25 }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: colors.textSubtle, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Signed in
-            </div>
-            <div style={{ fontWeight: 700, color: colors.text }}>{user.email}</div>
-          </div>
-        </div>
-      )}
-
-      <form onSubmit={handleSave}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-          <Field label="Make">
-            <TextInput
-              value={make}
-              onChange={(e) => setMake(e.target.value)}
-              placeholder="Toyota"
-              required
-            />
-          </Field>
-          <Field label="Model">
-            <TextInput
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="Prius"
-              required
-            />
-          </Field>
-        </div>
-
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <Field label="Make">
+          <TextInput value={make} onChange={(e) => setMake(e.target.value)} placeholder="Toyota" required />
+        </Field>
+        <Field label="Model">
+          <TextInput value={model} onChange={(e) => setModel(e.target.value)} placeholder="Prius" required />
+        </Field>
         <Field label="License plate" helper="Required — passengers look for this at pickup.">
           <TextInput
             value={licensePlate}
@@ -162,8 +102,7 @@ function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
           disabled={isButtonDisabled}
           style={{
             ...buttons.accent,
-            width: '100%',
-            marginTop: '6px',
+            marginTop: '4px',
             opacity: isButtonDisabled ? 0.55 : 1,
             cursor: isButtonDisabled ? 'not-allowed' : 'pointer',
           }}
@@ -181,10 +120,11 @@ function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
       {message && (
         <p
           style={{
-            marginTop: '16px',
+            marginTop: '14px',
             padding: '10px 14px',
             borderRadius: radius.md,
             fontWeight: 600,
+            fontSize: '0.88rem',
             color: hasError ? colors.danger : colors.success,
             backgroundColor: hasError ? colors.dangerSoft : colors.successSoft,
           }}
@@ -196,8 +136,8 @@ function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
       {savedVehicle && !compact && (
         <div
           style={{
-            marginTop: '22px',
-            padding: '18px 20px',
+            marginTop: '18px',
+            padding: '16px 18px',
             borderRadius: radius.lg,
             background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(29, 78, 216, 0.06))',
             border: `1px solid ${colors.border}`,
@@ -223,7 +163,7 @@ function ProfileItem({ label, value }) {
     <div>
       <div
         style={{
-          fontSize: '0.68rem',
+          fontSize: '0.64rem',
           fontWeight: 800,
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
@@ -232,7 +172,7 @@ function ProfileItem({ label, value }) {
       >
         {label}
       </div>
-      <div style={{ marginTop: '4px', fontWeight: 700, color: colors.text }}>{value}</div>
+      <div style={{ marginTop: '4px', fontWeight: 700, color: colors.text, fontSize: '0.92rem' }}>{value}</div>
     </div>
   );
 }

@@ -3,11 +3,26 @@ import { collection, doc, onSnapshot, query, runTransaction, where } from 'fireb
 import { auth, db, firebaseReady } from '../firebase';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
 
+function useIsDesktop(breakpoint = 860) {
+  const mq = `(min-width: ${breakpoint}px)`;
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(mq).matches : false,
+  );
+  useEffect(() => {
+    const media = window.matchMedia(mq);
+    const handler = (e) => setIsDesktop(e.matches);
+    media.addEventListener('change', handler);
+    return () => media.removeEventListener('change', handler);
+  }, [mq]);
+  return isDesktop;
+}
+
 function DriverDashboard() {
   const [trips, setTrips] = useState([]);
   const [requests, setRequests] = useState([]);
   const [message, setMessage] = useState('');
   const [busyRequestId, setBusyRequestId] = useState('');
+  const isDesktop = useIsDesktop();
 
   useEffect(() => {
     if (!firebaseReady || !auth || !db) {
@@ -55,7 +70,10 @@ function DriverDashboard() {
     });
 
     const unsubscribeRequests = onSnapshot(requestsQuery, (snapshot) => {
-      const requestDocs = snapshot.docs.map((requestDoc) => ({ id: requestDoc.id, ...requestDoc.data() }));
+      const requestDocs = snapshot.docs.map((requestDoc) => ({
+        id: requestDoc.id,
+        ...requestDoc.data(),
+      }));
       setRequests(requestDocs);
     });
 
@@ -97,7 +115,9 @@ function DriverDashboard() {
     if (!firebaseReady || !auth || !db) {
       setRequests((currentRequests) =>
         currentRequests.map((item) =>
-          item.id === requestId ? { ...item, status: 'approved', decidedAt: new Date().toISOString() } : item,
+          item.id === requestId
+            ? { ...item, status: 'approved', decidedAt: new Date().toISOString() }
+            : item,
         ),
       );
       setTrips((currentTrips) =>
@@ -106,7 +126,8 @@ function DriverDashboard() {
             ? {
                 ...trip,
                 availableSeats: Math.max(0, (trip.availableSeats ?? trip.seats ?? 0) - 1),
-                status: (trip.availableSeats ?? trip.seats ?? 0) - 1 <= 0 ? 'full' : trip.status,
+                status:
+                  (trip.availableSeats ?? trip.seats ?? 0) - 1 <= 0 ? 'full' : trip.status,
               }
             : trip,
         ),
@@ -177,7 +198,9 @@ function DriverDashboard() {
     if (!firebaseReady || !auth || !db) {
       setRequests((currentRequests) =>
         currentRequests.map((item) =>
-          item.id === requestId ? { ...item, status: 'declined', decidedAt: new Date().toISOString() } : item,
+          item.id === requestId
+            ? { ...item, status: 'declined', decidedAt: new Date().toISOString() }
+            : item,
         ),
       );
       setMessage('Demo mode: Passenger request declined.');
@@ -216,39 +239,51 @@ function DriverDashboard() {
   const hasError = message.startsWith('Error');
 
   return (
-    <div style={{ padding: '32px', textAlign: 'left' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '220px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <span style={{ ...pills.base, ...pills.accent }}>
-              <span aria-hidden="true">📥</span> Inbox
-            </span>
-          </div>
-          <h2 style={{ ...typography.h2, margin: '10px 0 6px' }}>Passenger requests</h2>
+    <div style={{ padding: '22px' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: '14px',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          marginBottom: '12px',
+        }}
+      >
+        <div style={{ flex: 1, minWidth: '200px', textAlign: 'left' }}>
+          <span style={{ ...pills.base, ...pills.accent }}>
+            <span aria-hidden="true">📥</span> Inbox
+          </span>
+          <h2 style={{ ...typography.h2, margin: '10px 0 4px' }}>Passenger requests</h2>
           <p style={{ ...typography.body, margin: 0 }}>
-            Review pending riders before they get access to your trip. Approvals auto-deduct a seat.
+            Review pending riders. Approvals auto-deduct a seat.
           </p>
           {!firebaseReady && (
-            <p style={{ marginTop: '8px', color: '#92400e', fontWeight: 700 }}>
-              Demo mode: showing local sample requests because Firebase is not configured.
+            <p style={{ marginTop: '6px', color: '#92400e', fontWeight: 700, fontSize: '0.8rem' }}>
+              Demo mode: showing local sample requests.
             </p>
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <StatPill label="Pending" value={pendingRequests.length} tone={pendingRequests.length ? 'warning' : 'success'} />
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <StatPill
+            label="Pending"
+            value={pendingRequests.length}
+            tone={pendingRequests.length ? 'warning' : 'success'}
+          />
           <StatPill label="Approved" value={approvedRequests.length} tone="info" />
-          <StatPill label="Active trips" value={trips.length} tone="muted" />
+          <StatPill label="Trips" value={trips.length} tone="muted" />
         </div>
       </div>
 
       {message && (
         <p
           style={{
-            marginTop: '20px',
-            padding: '12px 16px',
+            marginTop: '10px',
+            padding: '10px 14px',
             borderRadius: radius.md,
             fontWeight: 600,
+            fontSize: '0.88rem',
             color: hasError ? colors.danger : colors.success,
             backgroundColor: hasError ? colors.dangerSoft : colors.successSoft,
           }}
@@ -257,23 +292,31 @@ function DriverDashboard() {
         </p>
       )}
 
-      <div style={{ display: 'grid', gap: '14px', marginTop: '24px' }}>
+      <div
+        style={{
+          display: 'grid',
+          gap: '12px',
+          marginTop: '18px',
+          gridTemplateColumns: isDesktop ? 'repeat(auto-fill, minmax(320px, 1fr))' : '1fr',
+        }}
+      >
         {pendingRequests.length === 0 ? (
           <div
             style={{
-              padding: '28px',
+              padding: '26px',
               borderRadius: radius.lg,
               border: `1px dashed ${colors.borderStrong}`,
-              backgroundColor: 'rgba(255, 255, 255, 0.6)',
+              backgroundColor: colors.surfaceMuted,
               textAlign: 'center',
+              gridColumn: '1 / -1',
             }}
           >
-            <div style={{ fontSize: '2rem', marginBottom: '6px' }} aria-hidden="true">
+            <div style={{ fontSize: '1.8rem', marginBottom: '6px' }} aria-hidden="true">
               ☀️
             </div>
             <strong style={{ color: colors.text }}>All caught up</strong>
-            <p style={{ ...typography.body, marginTop: '6px', marginBottom: 0 }}>
-              New passenger requests show up here automatically — no refresh needed.
+            <p style={{ ...typography.body, marginTop: '4px', marginBottom: 0 }}>
+              New passenger requests show up here automatically.
             </p>
           </div>
         ) : (
@@ -288,19 +331,29 @@ function DriverDashboard() {
               <div
                 key={request.id}
                 style={{
-                  padding: '20px',
+                  padding: '18px',
                   borderRadius: radius.lg,
                   backgroundColor: colors.surfaceSolid,
                   border: `1px solid ${colors.border}`,
                   boxShadow: shadows.soft,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', minWidth: 0 }}>
                     <div
                       style={{
-                        width: '44px',
-                        height: '44px',
+                        width: '40px',
+                        height: '40px',
                         borderRadius: '50%',
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -308,34 +361,60 @@ function DriverDashboard() {
                         backgroundColor: colors.accentSoft,
                         color: colors.accent,
                         fontWeight: 800,
-                        fontSize: '1rem',
+                        fontSize: '0.95rem',
+                        flexShrink: 0,
                       }}
                     >
-                      {(request.passengerEmail || request.passengerName || 'P').slice(0, 1).toUpperCase()}
+                      {(request.passengerEmail || request.passengerName || 'P')
+                        .slice(0, 1)
+                        .toUpperCase()}
                     </div>
-                    <div>
-                      <div style={{ ...typography.h3, margin: 0 }}>
-                        {request.passengerEmail || request.passengerName || 'Passenger request'}
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          ...typography.h3,
+                          margin: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {request.passengerEmail || request.passengerName || 'Passenger'}
                       </div>
-                      <div style={{ color: colors.textSubtle, fontSize: '0.88rem', marginTop: '2px' }}>
+                      <div style={{ color: colors.textSubtle, fontSize: '0.82rem', marginTop: '2px' }}>
                         {trip?.origin || 'Unknown origin'} → {trip?.destination || 'Unknown destination'}
                       </div>
                     </div>
                   </div>
 
-                  <span style={{ ...pills.base, ...pills.warning }}>{request.status}</span>
+                  <span style={{ ...pills.base, ...pills.warning, flexShrink: 0 }}>
+                    {request.status}
+                  </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginTop: '16px' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                    gap: '10px',
+                  }}
+                >
                   <InfoItem
                     label="Departure"
-                    value={trip?.departureTime ? new Date(trip.departureTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                    value={
+                      trip?.departureTime
+                        ? new Date(trip.departureTime).toLocaleString([], {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })
+                        : '—'
+                    }
                   />
-                  <InfoItem label="Seats remaining" value={remainingSeats ?? '—'} accent />
-                  {request.note && <InfoItem label="Note from passenger" value={request.note} wide />}
+                  <InfoItem label="Seats left" value={remainingSeats ?? '—'} accent />
+                  {request.note && <InfoItem label="Note" value={request.note} wide />}
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '18px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     onClick={() => handleApprove(request.id)}
@@ -343,7 +422,7 @@ function DriverDashboard() {
                     style={{
                       ...buttons.accent,
                       flex: 1,
-                      minWidth: '140px',
+                      minWidth: '120px',
                       opacity: isBusy ? 0.7 : 1,
                       cursor: isBusy ? 'wait' : 'pointer',
                     }}
@@ -357,9 +436,9 @@ function DriverDashboard() {
                     style={{
                       ...buttons.ghost,
                       flex: 1,
-                      minWidth: '140px',
+                      minWidth: '120px',
                       color: colors.danger,
-                      borderColor: 'rgba(185, 28, 28, 0.25)',
+                      borderColor: 'rgba(220, 38, 38, 0.25)',
                       opacity: isBusy ? 0.7 : 1,
                       cursor: isBusy ? 'wait' : 'pointer',
                     }}
@@ -375,14 +454,16 @@ function DriverDashboard() {
 
       <div
         style={{
-          marginTop: '20px',
-          padding: '20px',
+          marginTop: '18px',
+          padding: '16px 18px',
           borderRadius: radius.lg,
           background: 'linear-gradient(135deg, rgba(29, 78, 216, 0.08), rgba(15, 118, 110, 0.06))',
           border: `1px solid ${colors.border}`,
         }}
       >
-        <div style={{ ...typography.eyebrow, color: colors.info, marginBottom: '6px' }}>Approved riders</div>
+        <div style={{ ...typography.eyebrow, color: colors.info, marginBottom: '4px' }}>
+          Approved riders
+        </div>
         <div style={{ ...typography.body, margin: 0 }}>
           {approvedRequests.length === 0
             ? 'Approved passengers will appear here once you accept them.'
@@ -398,16 +479,24 @@ function StatPill({ label, value, tone = 'muted' }) {
   return (
     <div
       style={{
-        padding: '10px 16px',
+        padding: '10px 14px',
         borderRadius: radius.lg,
         backgroundColor: palette.backgroundColor,
         color: palette.color,
-        minWidth: '92px',
+        minWidth: '78px',
         textAlign: 'center',
       }}
     >
-      <div style={{ fontSize: '1.4rem', fontWeight: 800, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '4px' }}>
+      <div style={{ fontSize: '1.3rem', fontWeight: 800, lineHeight: 1 }}>{value}</div>
+      <div
+        style={{
+          fontSize: '0.64rem',
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          marginTop: '4px',
+        }}
+      >
         {label}
       </div>
     </div>
@@ -419,7 +508,7 @@ function InfoItem({ label, value, accent = false, wide = false }) {
     <div style={{ gridColumn: wide ? '1 / -1' : 'auto' }}>
       <div
         style={{
-          fontSize: '0.68rem',
+          fontSize: '0.62rem',
           fontWeight: 800,
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
@@ -430,9 +519,10 @@ function InfoItem({ label, value, accent = false, wide = false }) {
       </div>
       <div
         style={{
-          marginTop: '3px',
+          marginTop: '2px',
           fontWeight: accent ? 800 : 600,
           color: accent ? colors.accent : colors.text,
+          fontSize: '0.88rem',
         }}
       >
         {value}
