@@ -45,9 +45,11 @@ function Login({ onLoginSuccess }) {
     setMessage('');
 
     if (mode === 'register') {
-      // USER STORY 1, TEST 1: Validate autuni.ac.nz email
-      if (!email.endsWith('@autuni.ac.nz')) {
-        setMessage("Validation error: You must use a valid aut university .ac.nz email address.");
+      // USER STORY 1, TEST 1: Validate AUT .ac.nz email (accepts @aut.ac.nz and @autuni.ac.nz)
+      const normalised = email.trim().toLowerCase();
+      const isAutEmail = normalised.endsWith('@aut.ac.nz') || normalised.endsWith('@autuni.ac.nz');
+      if (!isAutEmail) {
+        setMessage("Validation error: You must use a valid AUT email address (@aut.ac.nz or @autuni.ac.nz).");
         return;
       }
       try {
