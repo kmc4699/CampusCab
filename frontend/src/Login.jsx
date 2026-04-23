@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { auth } from './firebase';
+import { auth, firebaseReady } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 
 function Login({ onLoginSuccess }) {
@@ -45,6 +45,10 @@ function Login({ onLoginSuccess }) {
     setMessage('');
 
     if (mode === 'register') {
+      if (!firebaseReady || !auth) {
+        setMessage("Demo mode: Firebase is not configured, so registration is disabled locally.");
+        return;
+      }
       // USER STORY 1, TEST 1: Validate autuni.ac.nz email
       if (!email.endsWith('@autuni.ac.nz')) {
         setMessage("Validation error: You must use a valid aut university .ac.nz email address.");
@@ -59,6 +63,10 @@ function Login({ onLoginSuccess }) {
         setMessage("Error: " + error.message);
       }
     } else {
+      if (!firebaseReady || !auth) {
+        onLoginSuccess();
+        return;
+      }
       try {
         // USER STORY 2, TEST 2: Secure login
         await signInWithEmailAndPassword(auth, email, password);
@@ -150,6 +158,18 @@ function Login({ onLoginSuccess }) {
           </button>
         </div>
       </nav>
+
+      {!firebaseReady && (
+        <div style={{
+          backgroundColor: '#fef3c7',
+          color: '#92400e',
+          padding: '12px 20px',
+          fontWeight: '700',
+          textAlign: 'center',
+        }}>
+          Demo mode is active because Firebase env vars are missing in `frontend`.
+        </div>
+      )}
 
       {/* ── MAIN CONTENT — fills remaining space, full blue ── */}
       <div style={{

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, query, runTransaction, where } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth, db, firebaseReady } from '../firebase';
 
 const panelStyle = {
   marginTop: '30px',
@@ -26,6 +26,39 @@ function DriverDashboard() {
   const [busyRequestId, setBusyRequestId] = useState('');
 
   useEffect(() => {
+    if (!firebaseReady || !auth || !db) {
+      setTrips([
+        {
+          id: 'demo-trip-1',
+          origin: 'North Shore',
+          destination: 'City Campus',
+          departureTime: new Date(Date.now() + 1000 * 60 * 60 * 3).toISOString(),
+          availableSeats: 2,
+          seats: 2,
+          status: 'active',
+        },
+      ]);
+      setRequests([
+        {
+          id: 'demo-request-1',
+          tripId: 'demo-trip-1',
+          passengerName: 'Jamie Chen',
+          passengerEmail: 'jamie.chen@autuni.ac.nz',
+          note: 'I can meet near the main gate.',
+          status: 'pending',
+        },
+        {
+          id: 'demo-request-2',
+          tripId: 'demo-trip-1',
+          passengerName: 'Taylor Singh',
+          passengerEmail: 'taylor.singh@autuni.ac.nz',
+          note: 'Happy to chip in for parking.',
+          status: 'approved',
+        },
+      ]);
+      return undefined;
+    }
+
     const user = auth.currentUser;
     if (!user) {
       return undefined;
@@ -86,6 +119,27 @@ function DriverDashboard() {
     const request = requests.find((item) => item.id === requestId);
     if (!request) {
       setMessage('Error: Request could not be found.');
+      return;
+    }
+
+    if (!firebaseReady || !auth || !db) {
+      setRequests((currentRequests) =>
+        currentRequests.map((item) =>
+          item.id === requestId ? { ...item, status: 'approved', decidedAt: new Date().toISOString() } : item,
+        ),
+      );
+      setTrips((currentTrips) =>
+        currentTrips.map((trip) =>
+          trip.id === request.tripId
+            ? {
+                ...trip,
+                availableSeats: Math.max(0, (trip.availableSeats ?? trip.seats ?? 0) - 1),
+                status: (trip.availableSeats ?? trip.seats ?? 0) - 1 <= 0 ? 'full' : trip.status,
+              }
+            : trip,
+        ),
+      );
+      setMessage('Demo mode: Passenger approved and seat count updated.');
       return;
     }
 
@@ -153,6 +207,16 @@ function DriverDashboard() {
       return;
     }
 
+    if (!firebaseReady || !auth || !db) {
+      setRequests((currentRequests) =>
+        currentRequests.map((item) =>
+          item.id === requestId ? { ...item, status: 'declined', decidedAt: new Date().toISOString() } : item,
+        ),
+      );
+      setMessage('Demo mode: Passenger request declined.');
+      return;
+    }
+
     setBusyRequestId(requestId);
     setMessage('');
 
@@ -194,6 +258,11 @@ function DriverDashboard() {
           <p style={{ marginTop: '6px', color: '#52607a' }}>
             Review pending passengers before they get access to your trip.
           </p>
+          {!firebaseReady && (
+            <p style={{ marginTop: '8px', color: '#92400e', fontWeight: 700 }}>
+              Demo mode: showing local sample requests because Firebase is not configured.
+            </p>
+          )}
         </div>
         <div
           style={{
