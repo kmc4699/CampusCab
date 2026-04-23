@@ -2,37 +2,42 @@ import React, { useState } from 'react';
 import { db, auth } from './firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
-function VehicleProfile() {
-  const [make, setMake] = useState('');
-  const [model, setModel] = useState('');
-  const [licensePlate, setLicensePlate] = useState('');
+function VehicleProfile({ initialVehicle = null, onSaved }) {
+  const [make, setMake] = useState(initialVehicle?.make || '');
+  const [model, setModel] = useState(initialVehicle?.model || '');
+  const [licensePlate, setLicensePlate] = useState(initialVehicle?.licensePlate || '');
   const [message, setMessage] = useState('');
-  const [savedVehicle, setSavedVehicle] = useState(null);
+  const [savedVehicle, setSavedVehicle] = useState(initialVehicle);
 
-  // USER STORY 3, TEST 1: Disable button if license plate is blank
   const isButtonDisabled = licensePlate.trim() === '';
 
   const handleSave = async (e) => {
     e.preventDefault();
     try {
       const user = auth.currentUser;
-      if (!user) return; // Safety check
+      if (!user) return;
 
       const vehicleData = { make, model, licensePlate };
-
-      // This sends the data to your new Firestore database!
       await setDoc(doc(db, "vehicles", user.uid), vehicleData);
 
       setMessage("Vehicle details saved successfully!");
-      setSavedVehicle(vehicleData); // Stores it to show on the profile
+      setSavedVehicle(vehicleData);
+      if (onSaved) onSaved(vehicleData);
     } catch (error) {
       setMessage("Error saving: " + error.message);
     }
   };
 
+  const user = auth.currentUser;
+
   return (
     <div style={{ marginTop: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '8px', backgroundColor: '#fafafa' }}>
-      <h3>🚗 Add Vehicle Details</h3>
+      <h3>🚗 {initialVehicle ? 'Update Vehicle Details' : 'Add Vehicle Details'}</h3>
+      {user?.email && (
+        <p style={{ margin: '0 0 12px', color: '#52607a', fontSize: '0.9rem' }}>
+          Signed in as <strong>{user.email}</strong>
+        </p>
+      )}
       <form onSubmit={handleSave}>
         <div style={{ marginBottom: '10px' }}>
           <input
@@ -83,7 +88,6 @@ function VehicleProfile() {
 
       {message && <p style={{ color: 'green', fontWeight: 'bold', marginTop: '15px' }}>{message}</p>}
 
-      {/* USER STORY 3, TEST 2: Show details on public profile once saved */}
       {savedVehicle && (
         <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e9ecef', borderRadius: '5px', textAlign: 'left' }}>
           <h4 style={{ margin: '0 0 10px 0' }}>Public Driver Profile</h4>
