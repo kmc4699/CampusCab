@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db, auth } from './firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 function CreateTrip() {
   const [origin, setOrigin] = useState('North Shore');
@@ -39,8 +39,10 @@ function CreateTrip() {
         origin: origin,
         destination: destination,
         departureTime: departureTime,
-        seats: parseInt(seats),
-        status: 'active'
+        seats: parseInt(seats, 10),
+        availableSeats: parseInt(seats, 10),
+        status: 'active',
+        createdAt: serverTimestamp(),
       };
       
       // Save to a new Firestore collection called "trips"
@@ -112,7 +114,7 @@ function CreateTrip() {
           <h4 style={{ margin: '0 0 10px 0', color: '#007bff' }}>Live Trip Feed View</h4>
           <p style={{ margin: '5px 0' }}><strong>Route:</strong> {recentTrip.origin} ➔ {recentTrip.destination}</p>
           <p style={{ margin: '5px 0' }}><strong>Departs:</strong> {new Date(recentTrip.departureTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
-          <p style={{ margin: '5px 0', color: '#28a745', fontWeight: 'bold' }}>{recentTrip.seats} Seats Available</p>
+          <p style={{ margin: '5px 0', color: '#28a745', fontWeight: 'bold' }}>{recentTrip.availableSeats} Seats Available</p>
         </div>
       )}
     </div>

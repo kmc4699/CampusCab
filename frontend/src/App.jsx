@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Login from './Login';
 import VehicleProfile from './VehicleProfile';
 import CreateTrip from './CreateTrip';
+import DriverDashboard from './pages/DriverDashboard';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -16,6 +17,7 @@ function App() {
           {/* We added the Vehicle Profile feature right here */}
           <VehicleProfile />
           <CreateTrip />
+          <DriverDashboard />
 
           <button
             onClick={() => setIsAuthenticated(false)}
