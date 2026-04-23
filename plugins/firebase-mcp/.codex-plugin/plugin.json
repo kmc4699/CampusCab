@@ -1,0 +1,32 @@
+{
+  "name": "firebase-mcp",
+  "version": "1.0.0",
+  "description": "Repo-local plugin that exposes the official Firebase MCP server through firebase-tools.",
+  "author": {
+    "name": "CampusCab",
+    "email": "todo@example.com",
+    "url": "https://github.com/CampusCab-AUT/CampusCab"
+  },
+  "homepage": "https://firebase.google.com/docs/cli/mcp-server",
+  "repository": "https://github.com/CampusCab-AUT/CampusCab",
+  "license": "UNLICENSED",
+  "keywords": ["firebase", "mcp", "firestore", "auth"],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Firebase MCP",
+    "shortDescription": "Official Firebase MCP server for project operations.",
+    "longDescription": "Adds the official Firebase MCP server from firebase-tools so future Codex sessions can inspect and operate on Firebase resources for this project.",
+    "developerName": "CampusCab",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://firebase.google.com/docs/cli/mcp-server",
+    "privacyPolicyURL": "https://policies.google.com/privacy",
+    "termsOfServiceURL": "https://policies.google.com/terms",
+    "defaultPrompt": [
+      "List Firebase projects available to this machine.",
+      "Inspect Firestore collections for the active project.",
+      "Help set up Firebase Auth and Firestore safely."
+    ],
+    "brandColor": "#FFCA28"
+  }
+}

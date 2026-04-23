@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "npx",
+      "args": ["-y", "firebase-tools@latest", "experimental:mcp"],
+      "note": "Official Firebase MCP server from firebase-tools. Authenticate first with `npx -y firebase-tools@latest login --reauth` or provide Google Application Default Credentials."
+    }
+  }
+}
