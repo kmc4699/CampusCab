@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { db, auth } from './firebase';
+import { db, auth, firebaseReady } from './firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { buttons, colors, inputs, pills, radius, shadows, typography } from './theme';
 
@@ -90,6 +90,23 @@ function CreateTrip() {
 
     setIsSubmitting(true);
     try {
+      if (!firebaseReady || !db || !auth) {
+        const tripData = {
+          driverId: 'demo-driver',
+          driverEmail: 'demo@autuni.ac.nz',
+          origin,
+          destination,
+          departureTime,
+          seats: parseInt(seats, 10),
+          availableSeats: parseInt(seats, 10),
+          status: 'active',
+        };
+
+        setMessage("Demo mode: Trip preview updated locally.");
+        setRecentTrip(tripData);
+        return;
+      }
+
       const user = auth.currentUser;
       if (!user) return;
 
