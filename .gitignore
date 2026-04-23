@@ -10,6 +10,9 @@ build/
 .env
 .env.local
 .env.*.local
+backend/serviceAccountKey.json
+backend/*service-account*.json
+backend/*firebase-adminsdk*.json
 
 # Vite cache
 .vite/
@@ -43,3 +46,7 @@ Thumbs.db
 # Claude Code
 # Added by Luka - Claude was added to remove duplicate Trello cards using Trello MCP
 .claude.json
+trello_borad.json
+.gitignore
+.gitignore
+backend/package-lock.json
