@@ -1,101 +1,238 @@
 import React, { useState } from 'react';
 import { db, auth } from './firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { buttons, colors, inputs, pills, radius, shadows, typography } from './theme';
 
-function VehicleProfile({ initialVehicle = null, onSaved }) {
+function Field({ label, helper, children }) {
+  return (
+    <div style={{ marginBottom: '18px', textAlign: 'left' }}>
+      <label style={inputs.label}>{label}</label>
+      {children}
+      {helper && <p style={inputs.helper}>{helper}</p>}
+    </div>
+  );
+}
+
+function TextInput({ value, onChange, placeholder, required = false, ...rest }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      required={required}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        ...inputs.field,
+        ...(focused ? inputs.fieldFocus : null),
+      }}
+      {...rest}
+    />
+  );
+}
+
+function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
   const [make, setMake] = useState(initialVehicle?.make || '');
   const [model, setModel] = useState(initialVehicle?.model || '');
   const [licensePlate, setLicensePlate] = useState(initialVehicle?.licensePlate || '');
   const [message, setMessage] = useState('');
   const [savedVehicle, setSavedVehicle] = useState(initialVehicle);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const isButtonDisabled = licensePlate.trim() === '';
+  const isButtonDisabled = licensePlate.trim() === '' || isSaving;
 
   const handleSave = async (e) => {
     e.preventDefault();
+    setMessage('');
+    setIsSaving(true);
     try {
       const user = auth.currentUser;
       if (!user) return;
 
       const vehicleData = { make, model, licensePlate };
-      await setDoc(doc(db, "vehicles", user.uid), vehicleData);
+      await setDoc(doc(db, 'vehicles', user.uid), vehicleData);
 
-      setMessage("Vehicle details saved successfully!");
+      setMessage('Vehicle details saved successfully.');
       setSavedVehicle(vehicleData);
       if (onSaved) onSaved(vehicleData);
     } catch (error) {
-      setMessage("Error saving: " + error.message);
+      setMessage('Error saving: ' + error.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const user = auth.currentUser;
+  const hasError = message.startsWith('Error');
 
   return (
-    <div style={{ marginTop: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '8px', backgroundColor: '#fafafa' }}>
-      <h3>🚗 {initialVehicle ? 'Update Vehicle Details' : 'Add Vehicle Details'}</h3>
+    <div
+      style={{
+        padding: compact ? '24px' : '32px',
+        textAlign: 'left',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+        <span style={{ ...pills.base, ...pills.accent }}>
+          <span aria-hidden="true">🚗</span> Vehicle
+        </span>
+        {savedVehicle && !compact && (
+          <span style={{ ...pills.base, ...pills.success }}>Saved</span>
+        )}
+      </div>
+
+      <h2 style={{ ...typography.h2, margin: '10px 0 6px' }}>
+        {initialVehicle ? 'Update your vehicle' : 'Tell us about your ride'}
+      </h2>
+      <p style={{ ...typography.body, margin: '0 0 20px' }}>
+        Passengers see these details when deciding whether to request a seat. Make sure your plate is
+        accurate so they can find you at pickup.
+      </p>
+
       {user?.email && (
-        <p style={{ margin: '0 0 12px', color: '#52607a', fontSize: '0.9rem' }}>
-          Signed in as <strong>{user.email}</strong>
-        </p>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 14px',
+            borderRadius: radius.md,
+            backgroundColor: colors.surfaceMuted,
+            border: `1px solid ${colors.border}`,
+            marginBottom: '22px',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '50%',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.accentSoft,
+              color: colors.accent,
+              fontWeight: 800,
+            }}
+          >
+            {user.email.slice(0, 1).toUpperCase()}
+          </span>
+          <div style={{ lineHeight: 1.25 }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: colors.textSubtle, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Signed in
+            </div>
+            <div style={{ fontWeight: 700, color: colors.text }}>{user.email}</div>
+          </div>
+        </div>
       )}
+
       <form onSubmit={handleSave}>
-        <div style={{ marginBottom: '10px' }}>
-          <input
-            type="text"
-            placeholder="Make (e.g., Toyota)"
-            value={make}
-            onChange={(e) => setMake(e.target.value)}
-            required
-            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
-          />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          <Field label="Make">
+            <TextInput
+              value={make}
+              onChange={(e) => setMake(e.target.value)}
+              placeholder="Toyota"
+              required
+            />
+          </Field>
+          <Field label="Model">
+            <TextInput
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="Prius"
+              required
+            />
+          </Field>
         </div>
-        <div style={{ marginBottom: '10px' }}>
-          <input
-            type="text"
-            placeholder="Model (e.g., Prius)"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            required
-            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
-          />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <input
-            type="text"
-            placeholder="License Plate (Required)"
+
+        <Field label="License plate" helper="Required — passengers look for this at pickup.">
+          <TextInput
             value={licensePlate}
             onChange={(e) => setLicensePlate(e.target.value)}
-            style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
+            placeholder="ABC123"
           />
-        </div>
+        </Field>
 
         <button
           type="submit"
           disabled={isButtonDisabled}
           style={{
-            padding: '10px 20px',
-            backgroundColor: isButtonDisabled ? '#cccccc' : '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
+            ...buttons.accent,
+            width: '100%',
+            marginTop: '6px',
+            opacity: isButtonDisabled ? 0.55 : 1,
             cursor: isButtonDisabled ? 'not-allowed' : 'pointer',
-            width: '100%'
           }}
         >
-          {isButtonDisabled ? "Enter License Plate to Save" : "Save Vehicle"}
+          {isSaving
+            ? 'Saving…'
+            : licensePlate.trim() === ''
+              ? 'Enter a license plate to continue'
+              : initialVehicle
+                ? 'Save changes'
+                : 'Save and continue'}
         </button>
       </form>
 
-      {message && <p style={{ color: 'green', fontWeight: 'bold', marginTop: '15px' }}>{message}</p>}
+      {message && (
+        <p
+          style={{
+            marginTop: '16px',
+            padding: '10px 14px',
+            borderRadius: radius.md,
+            fontWeight: 600,
+            color: hasError ? colors.danger : colors.success,
+            backgroundColor: hasError ? colors.dangerSoft : colors.successSoft,
+          }}
+        >
+          {message}
+        </p>
+      )}
 
-      {savedVehicle && (
-        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e9ecef', borderRadius: '5px', textAlign: 'left' }}>
-          <h4 style={{ margin: '0 0 10px 0' }}>Public Driver Profile</h4>
-          <p style={{ margin: '5px 0' }}><strong>Make:</strong> {savedVehicle.make}</p>
-          <p style={{ margin: '5px 0' }}><strong>Model:</strong> {savedVehicle.model}</p>
-          <p style={{ margin: '5px 0' }}><strong>License Plate:</strong> {savedVehicle.licensePlate}</p>
+      {savedVehicle && !compact && (
+        <div
+          style={{
+            marginTop: '22px',
+            padding: '18px 20px',
+            borderRadius: radius.lg,
+            background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(29, 78, 216, 0.06))',
+            border: `1px solid ${colors.border}`,
+            boxShadow: shadows.soft,
+          }}
+        >
+          <div style={{ ...typography.eyebrow, marginBottom: '10px', color: colors.accent }}>
+            Public driver profile
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+            <ProfileItem label="Make" value={savedVehicle.make || '—'} />
+            <ProfileItem label="Model" value={savedVehicle.model || '—'} />
+            <ProfileItem label="Plate" value={savedVehicle.licensePlate} />
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfileItem({ label, value }) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: '0.68rem',
+          fontWeight: 800,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: colors.textSubtle,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ marginTop: '4px', fontWeight: 700, color: colors.text }}>{value}</div>
     </div>
   );
 }
