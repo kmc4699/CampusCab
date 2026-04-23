@@ -1,4 +1,5 @@
 const { db } = require('../config/firebaseConfig');
+const Trip = require('../models/Trip');
 // h3-js is used to convert lat/lng coordinates into an H3 geospatial index cell
 // const { latLngToCell } = require('h3-js');
 
@@ -50,7 +51,45 @@ const createTrip = async (req, res) => {
  * 3. Return the list of matching trip documents as JSON
  */
 const searchTrips = async (req, res) => {
-  // TODO: implement searchTrips
+  try {
+    const { campus, date } = req.query;
+
+    if (!campus || !date) {
+      return res.status(400).json({ error: 'Campus and date are required.' });
+    }
+
+    const snapshot = await db
+      .collection('tripListings')
+      .where('destinationCampus', '==', campus)
+      .where('departureDate', '==', date)
+      .where('availableSeats', '>', 0)
+      .where('tripStatus', '==', 'Open')
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(200).json({
+        message: 'No rides available',
+        trips: [],
+      });
+    }
+
+    const results = snapshot.docs.map((doc) => {
+      const data = doc.data();
+
+      return new Trip(
+        doc.id,
+        data.originArea,
+        data.destinationCampus,
+        data.departureDate,
+        data.availableSeats
+      );
+    });
+
+    return res.status(200).json(results);
+  } catch (error) {
+    console.error('Error searching trips:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
 };
 
 /**
