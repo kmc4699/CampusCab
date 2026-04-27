@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+  writeBatch,
+} from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase';
 import { FIRESTORE_COLLECTIONS, NOTIFICATION_STATUS, RIDE_REQUEST_STATUS } from '../firestoreModel';
 import SearchTrips from './SearchTrips';
@@ -15,6 +25,7 @@ function formatDeparture(departureTime) {
 function PassengerDashboard() {
   const [upcomingRides, setUpcomingRides] = useState([]);
   const [pastRides] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [rideToCancel, setRideToCancel] = useState(null);
@@ -76,6 +87,39 @@ function PassengerDashboard() {
       },
     );
   }, []);
+
+  useEffect(() => {
+    if (!firebaseReady || !auth || !db || !auth.currentUser) {
+      return undefined;
+    }
+
+    const notificationsQuery = query(
+      collection(db, FIRESTORE_COLLECTIONS.notifications),
+      where('recipientId', '==', auth.currentUser.uid),
+      where('status', '==', NOTIFICATION_STATUS.unread),
+    );
+
+    return onSnapshot(notificationsQuery, (snapshot) => {
+      const notificationDocs = snapshot.docs
+        .map((notificationDoc) => ({ id: notificationDoc.id, ...notificationDoc.data() }))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setNotifications(notificationDocs);
+    });
+  }, []);
+
+  const handleDismissNotification = async (notificationId) => {
+    if (!firebaseReady || !db) {
+      setNotifications((currentNotifications) =>
+        currentNotifications.filter((notification) => notification.id !== notificationId),
+      );
+      return;
+    }
+
+    await updateDoc(doc(db, FIRESTORE_COLLECTIONS.notifications, notificationId), {
+      status: NOTIFICATION_STATUS.read,
+      readAt: new Date().toISOString(),
+    });
+  };
 
   const handleCancelSeat = async () => {
     if (!rideToCancel) return;
@@ -142,6 +186,47 @@ function PassengerDashboard() {
         <h1>Passenger Dashboard</h1>
         <p>Welcome back! Manage your upcoming rides or find a new trip to campus.</p>
       </header>
+
+      {notifications.length > 0 && (
+        <section style={{ display: 'grid', gap: '10px', marginBottom: '24px' }}>
+          {notifications.map((notification) => (
+            <div
+              key={notification.id}
+              role="status"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '14px 16px',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                backgroundColor: '#fef2f2',
+                color: '#991b1b',
+                fontWeight: 700,
+              }}
+            >
+              <span>{notification.message || 'Your ride request update is ready.'}</span>
+              <button
+                type="button"
+                onClick={() => handleDismissNotification(notification.id)}
+                style={{
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  background: '#fff',
+                  color: '#991b1b',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  padding: '8px 10px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Mark read
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
 
       {message && (
         <p

@@ -412,7 +412,7 @@ function DriverDashboard() {
             : item,
         ),
       );
-      setMessage('Demo mode: Passenger request declined.');
+      setMessage('Demo mode: Passenger request declined and passenger notified.');
       return;
     }
 
@@ -422,11 +422,18 @@ function DriverDashboard() {
     try {
       await runTransaction(db, async (transaction) => {
         const requestRef = doc(db, FIRESTORE_COLLECTIONS.rideRequests, requestId);
+        const notificationRef = doc(collection(db, FIRESTORE_COLLECTIONS.notifications));
         const requestSnap = await transaction.get(requestRef);
         if (!requestSnap.exists()) throw new Error('Request not found.');
 
         const latestRequest = requestSnap.data();
         const currentStatus = (latestRequest.status || '').toLowerCase();
+        const driverId = auth.currentUser?.uid;
+
+        if (latestRequest.tripOwnerId !== driverId) {
+          throw new Error('Only the trip driver can decline this request.');
+        }
+
         if (currentStatus !== RIDE_REQUEST_STATUS.pending) {
           throw new Error('This request has already been processed.');
         }
@@ -435,9 +442,20 @@ function DriverDashboard() {
           status: RIDE_REQUEST_STATUS.declined,
           decidedAt: new Date().toISOString(),
         });
+        transaction.set(notificationRef, {
+          type: 'ride_request_declined',
+          recipientId: latestRequest.passengerId,
+          tripId: latestRequest.tripId,
+          requestId,
+          driverId,
+          passengerId: latestRequest.passengerId,
+          status: NOTIFICATION_STATUS.unread,
+          message: 'Your ride request was declined by the driver.',
+          createdAt: serverTimestamp(),
+        });
       });
 
-      setMessage('Passenger request declined.');
+      setMessage('Passenger request declined and passenger notified.');
     } catch (error) {
       setMessage(`Error: ${error.message}`);
     } finally {
