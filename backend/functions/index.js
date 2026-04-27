@@ -7,6 +7,26 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+const RIDE_REQUEST_STATUS = {
+  approved: 'approved',
+  cancelled: 'cancelled',
+};
+
+const TRIP_STATUS = {
+  active: 'active',
+  full: 'full',
+};
+
+const getPositiveInteger = (value, fallback = 1) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const getNonNegativeInteger = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
 exports.onRideRequestCreated = functions.firestore
   .document('rideRequests/{requestId}')
   .onCreate(async (snap, context) => {
@@ -91,6 +111,73 @@ exports.onRideRequestCreated = functions.firestore
         deletedCount: staleTokenDeletes.length,
       });
     }
+
+    return null;
+  });
+
+exports.onApprovedRideRequestCancelled = functions.firestore
+  .document('rideRequests/{requestId}')
+  .onUpdate(async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+    const previousStatus = (beforeData.status || '').toLowerCase();
+    const nextStatus = (afterData.status || '').toLowerCase();
+
+    if (
+      previousStatus !== RIDE_REQUEST_STATUS.approved ||
+      nextStatus !== RIDE_REQUEST_STATUS.cancelled
+    ) {
+      return null;
+    }
+
+    if (!afterData.tripId) {
+      functions.logger.warn('Cancelled approved ride request has no tripId; skipping seat restore.', {
+        requestId: context.params.requestId,
+      });
+      return null;
+    }
+
+    const restoreResult = await db.runTransaction(async (transaction) => {
+      const tripRef = db.collection('trips').doc(afterData.tripId);
+      const tripSnap = await transaction.get(tripRef);
+      if (!tripSnap.exists) {
+        functions.logger.warn('Cancelled approved ride request points to a missing trip; skipping seat restore.', {
+          requestId: context.params.requestId,
+          tripId: afterData.tripId,
+        });
+        return null;
+      }
+
+      const tripData = tripSnap.data();
+      const seatsRequested = getPositiveInteger(afterData.seatsRequested, 1);
+      const totalSeats = getPositiveInteger(tripData.seats, seatsRequested);
+      const currentSeats = getNonNegativeInteger(tripData.availableSeats, totalSeats);
+      const nextSeats = Math.min(currentSeats + seatsRequested, totalSeats);
+      const tripUpdate = {
+        availableSeats: nextSeats,
+      };
+
+      if (tripData.status === TRIP_STATUS.full && nextSeats > 0) {
+        tripUpdate.status = TRIP_STATUS.active;
+      }
+
+      transaction.update(tripRef, tripUpdate);
+      return {
+        seatsRequested,
+        restoredSeats: nextSeats - currentSeats,
+      };
+    });
+
+    if (!restoreResult) {
+      return null;
+    }
+
+    functions.logger.info('Restored seats after approved ride request cancellation.', {
+      requestId: context.params.requestId,
+      tripId: afterData.tripId,
+      seatsRequested: restoreResult.seatsRequested,
+      restoredSeats: restoreResult.restoredSeats,
+    });
 
     return null;
   });
