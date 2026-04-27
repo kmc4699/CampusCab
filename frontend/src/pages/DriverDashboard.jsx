@@ -2,21 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, query, runTransaction, where } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase';
 import { FIRESTORE_COLLECTIONS, RIDE_REQUEST_STATUS, TRIP_STATUS } from '../firestoreModel';
+import useIsDesktop from '../hooks/useIsDesktop';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
-
-function useIsDesktop(breakpoint = 860) {
-  const mq = `(min-width: ${breakpoint}px)`;
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia(mq).matches : false,
-  );
-  useEffect(() => {
-    const media = window.matchMedia(mq);
-    const handler = (e) => setIsDesktop(e.matches);
-    media.addEventListener('change', handler);
-    return () => media.removeEventListener('change', handler);
-  }, [mq]);
-  return isDesktop;
-}
 
 function DriverDashboard() {
   const [trips, setTrips] = useState([]);
