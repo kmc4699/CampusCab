@@ -101,9 +101,9 @@ node server.js
 
 For backend Firebase Admin access, set `GOOGLE_APPLICATION_CREDENTIALS` or the service-account fields in `backend/.env`.
 
-## Planned Express API Routes
+## Express API Routes
 
-These routes are mounted by the backend, but they currently return `501 Not Implemented` unless a handler has been explicitly completed. The active frontend does not depend on them.
+These routes are mounted by the backend. Auth, trips, and messages are still planned API surfaces. Bookings are implemented and mirror the active Firestore request flow.
 
 ### Auth — `/api/auth`
 | Method | Endpoint | Description |
@@ -123,7 +123,7 @@ These routes are mounted by the backend, but they currently return `501 Not Impl
 ### Bookings — `/api/bookings`
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/` | Passenger requests to join a trip |
+| POST | `/` | Passenger requests to join a trip and creates a driver dashboard notification |
 | PUT | `/:id/approve` | Driver approves request (atomic transaction) |
 | PUT | `/:id/decline` | Driver declines request |
 | DELETE | `/:id` | Passenger cancels request |
@@ -147,7 +147,8 @@ These routes are mounted by the backend, but they currently return `501 Not Impl
 
 - **trips** — driverId, driverEmail, origin, destination, departureTime, seats, availableSeats, status, createdAt
 - **vehicles** — document ID is the driver UID; make, model, licensePlate
-- **rideRequests** — planned/optional request documents linked to trips; status values use pending, approved, declined
+- **rideRequests** — request documents linked to trips; status values use pending, approved, declined, cancelled
+- **notifications** — driver dashboard alerts for ride requests; unread notifications are shown on the driver dashboard
 
 ## Team
 
