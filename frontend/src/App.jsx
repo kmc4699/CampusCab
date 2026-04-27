@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import Login from './Login';
@@ -575,16 +576,62 @@ function DashboardPlaceholder({ role }) {
 }
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (auth) {
+      return false;
+    }
+    return localStorage.getItem('campuscab-demo-authenticated') === 'true';
+  });
+  const [authLoading, setAuthLoading] = useState(Boolean(auth));
   const [selectedRole, setSelectedRole] = useState('driver');
 
-  const handleLogout = () => {
+  useEffect(() => {
+    if (!auth) {
+      return undefined;
+    }
+
+    return onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(Boolean(user));
+      setAuthLoading(false);
+    });
+  }, []);
+
+  const handleLoginSuccess = () => {
+    if (!auth) {
+      localStorage.setItem('campuscab-demo-authenticated', 'true');
+    }
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = async () => {
     setSelectedRole('driver');
+    localStorage.removeItem('campuscab-demo-authenticated');
+    if (auth) {
+      await signOut(auth);
+      return;
+    }
     setIsAuthenticated(false);
   };
 
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'grid',
+          placeItems: 'center',
+          background: colors.accentGradient,
+          color: '#ffffff',
+          fontWeight: 800,
+        }}
+      >
+        Loading your session...
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <Login onLoginSuccess={() => setIsAuthenticated(true)} />;
+    return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
