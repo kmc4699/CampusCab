@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, query, runTransaction, where } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase';
+import { FIRESTORE_COLLECTIONS } from '../firestoreModel';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
 
 function useIsDesktop(breakpoint = 860) {
@@ -61,7 +62,10 @@ function DriverDashboard() {
     const user = auth.currentUser;
     if (!user) return undefined;
 
-    const tripsQuery = query(collection(db, 'trips'), where('driverId', '==', user.uid));
+    const tripsQuery = query(
+      collection(db, FIRESTORE_COLLECTIONS.trips),
+      where('driverId', '==', user.uid),
+    );
     const requestsQuery = query(collection(db, 'rideRequests'), where('tripOwnerId', '==', user.uid));
 
     const unsubscribeTrips = onSnapshot(tripsQuery, (snapshot) => {
@@ -142,7 +146,7 @@ function DriverDashboard() {
     try {
       await runTransaction(db, async (transaction) => {
         const requestRef = doc(db, 'rideRequests', requestId);
-        const tripRef = doc(db, 'trips', request.tripId);
+        const tripRef = doc(db, FIRESTORE_COLLECTIONS.trips, request.tripId);
 
         const [requestSnap, tripSnap] = await Promise.all([
           transaction.get(requestRef),
