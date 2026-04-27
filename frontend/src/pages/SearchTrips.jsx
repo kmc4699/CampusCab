@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db, firebaseReady } from '../firebase';
-import { FIRESTORE_COLLECTIONS, TRIP_STATUS } from '../firestoreModel';
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, firebaseReady, auth } from '../firebase';
+import { FIRESTORE_COLLECTIONS, TRIP_STATUS, RIDE_REQUEST_STATUS } from '../firestoreModel';
 
 function isSameDepartureDate(departureTime, selectedDate) {
   return Boolean(departureTime && selectedDate && departureTime.startsWith(selectedDate));
@@ -26,12 +26,14 @@ const SearchTrips = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const [selectedTripId, setSelectedTripId] = useState(null);
 
   const handleSearch = async (e) => {
     e.preventDefault();
     setError('');
     setHasSearched(true);
     setLoading(true);
+    setSelectedTripId(null);
 
     try {
       if (!firebaseReady || !db) {
@@ -61,6 +63,45 @@ const SearchTrips = () => {
     } catch (err) {
       console.error(err);
       setError(err.message || 'An error occurred while searching for trips.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBookTrip = async (trip) => {
+    if (!firebaseReady || !db || !auth) {
+      alert('Demo mode: Booking request simulated.');
+      setSelectedTripId(null);
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      setError('You must be signed in to book a ride.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const requestsRef = collection(db, FIRESTORE_COLLECTIONS.rideRequests);
+      await addDoc(requestsRef, {
+        tripId: trip.id,
+        tripOwnerId: trip.driverId || 'unknown_driver',
+        passengerId: user.uid,
+        passengerName: user.displayName || 'Passenger',
+        passengerEmail: user.email || '',
+        status: RIDE_REQUEST_STATUS.pending,
+        createdAt: serverTimestamp(),
+        note: 'Requested from Search UI'
+      });
+
+      alert('Booking request sent successfully!');
+      setSelectedTripId(null);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'An error occurred while sending the booking request.');
     } finally {
       setLoading(false);
     }
@@ -120,14 +161,42 @@ const SearchTrips = () => {
         
         {!loading && hasSearched && trips.length > 0 && (
           <ul style={{ listStyleType: 'none', padding: 0 }}>
-            {trips.map((trip) => (
-              <li key={trip.id} style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '10px', borderRadius: '5px' }}>
-                <p><strong>Origin:</strong> {trip.origin}</p>
-                <p><strong>Destination:</strong> {trip.destination}</p>
-                <p><strong>Departure:</strong> {formatDeparture(trip.departureTime)}</p>
-                <p><strong>Available Seats:</strong> {trip.availableSeats}</p>
-              </li>
-            ))}
+            {trips.map((trip) => {
+              const isSelected = selectedTripId === trip.id;
+              return (
+                <li 
+                  key={trip.id} 
+                  onClick={() => setSelectedTripId(trip.id)}
+                  style={{ 
+                    border: isSelected ? '2px solid #007BFF' : '1px solid #ccc',
+                    backgroundColor: isSelected ? '#e6f2ff' : 'transparent',
+                    padding: '15px', 
+                    marginBottom: '10px', 
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                >
+                  <p><strong>Origin:</strong> {trip.origin}</p>
+                  <p><strong>Destination:</strong> {trip.destination}</p>
+                  <p><strong>Departure:</strong> {formatDeparture(trip.departureTime)}</p>
+                  <p><strong>Available Seats:</strong> {trip.availableSeats}</p>
+                  {isSelected && (
+                    <div style={{ marginTop: '15px' }}>
+                      <button 
+                        style={{ padding: '8px 16px', backgroundColor: '#28a745', color: '#FFF', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBookTrip(trip);
+                        }}
+                      >
+                        Choose this Ride
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
