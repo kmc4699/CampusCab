@@ -7,6 +7,16 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+const RIDE_REQUEST_STATUS = {
+  approved: 'approved',
+  cancelled: 'cancelled',
+};
+
+const TRIP_STATUS = {
+  active: 'active',
+  full: 'full',
+};
+
 exports.onRideRequestCreated = functions.firestore
   .document('rideRequests/{requestId}')
   .onCreate(async (snap, context) => {
@@ -91,6 +101,49 @@ exports.onRideRequestCreated = functions.firestore
         deletedCount: staleTokenDeletes.length,
       });
     }
+
+    return null;
+  });
+
+exports.onApprovedRideRequestCancelled = functions.firestore
+  .document('rideRequests/{requestId}')
+  .onUpdate(async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+    const previousStatus = (beforeData.status || '').toLowerCase();
+    const nextStatus = (afterData.status || '').toLowerCase();
+
+    if (
+      previousStatus !== RIDE_REQUEST_STATUS.approved ||
+      nextStatus !== RIDE_REQUEST_STATUS.cancelled
+    ) {
+      return null;
+    }
+
+    const tripRef = db.collection('trips').doc(afterData.tripId);
+
+    await db.runTransaction(async (transaction) => {
+      const tripSnap = await transaction.get(tripRef);
+      const tripData = tripSnap.data();
+      const seatsRequested = afterData.seatsRequested || 1;
+      const currentSeats = tripData.availableSeats || 0;
+      const totalSeats = tripData.seats;
+      const nextSeats = Math.min(currentSeats + seatsRequested, totalSeats);
+      const tripUpdate = {
+        availableSeats: nextSeats,
+      };
+
+      if (tripData.status === TRIP_STATUS.full && nextSeats > 0) {
+        tripUpdate.status = TRIP_STATUS.active;
+      }
+
+      transaction.update(tripRef, tripUpdate);
+    });
+
+    functions.logger.info('Restored seats after approved ride request cancellation.', {
+      requestId: context.params.requestId,
+      tripId: afterData.tripId,
+    });
 
     return null;
   });
