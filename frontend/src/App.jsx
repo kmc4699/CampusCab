@@ -5,6 +5,7 @@ import Login from './Login';
 import VehicleProfile from './VehicleProfile';
 import CreateTrip from './CreateTrip';
 import DriverDashboard from './pages/DriverDashboard';
+import PassengerDashboard from './pages/PassengerDashboard';
 import Stepper from './components/Stepper';
 import { buttons, colors, pills, radius, surfaces, typography } from './theme';
 
@@ -590,7 +591,7 @@ function App() {
   return (
     <ResponsiveShell role={selectedRole} onChangeRole={setSelectedRole} onLogout={handleLogout}>
       {selectedRole === 'driver' && <DriverExperience />}
-      {selectedRole === 'passenger' && <DashboardPlaceholder role="Passenger" />}
+      {selectedRole === 'passenger' && <PassengerDashboard />}
       {selectedRole === 'admin' && <DashboardPlaceholder role="Admin" />}
     </ResponsiveShell>
   );
