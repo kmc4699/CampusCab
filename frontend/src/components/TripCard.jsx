@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function TripCard({ trip }) {
+export default function TripCard() {
   // TODO: TripCard needs a stubbed UI element (badge) for remainingSeats or "Sold Out".
   
   return (

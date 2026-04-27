@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import SearchTrips from './SearchTrips';
 
 function PassengerDashboard() {
-  const [upcomingRides, setUpcomingRides] = useState([]);
-  const [pastRides, setPastRides] = useState([]);
+  const [upcomingRides] = useState([]);
+  const [pastRides] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
