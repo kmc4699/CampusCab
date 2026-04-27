@@ -6,6 +6,16 @@ A peer-to-peer carpool booking platform for university students.
 
 CampusCab connects university drivers and passengers for shared rides to and from campus. Only verified university students (`.ac.nz` email) can register.
 
+## Current Architecture
+
+The active app flow is:
+
+```
+React frontend → Firebase Auth / Firestore
+```
+
+Driver trip creation, vehicle profiles, driver request handling, and passenger trip search use the Firebase client SDK directly against hosted Firestore. The Express backend remains in the repo as a planned secondary API surface, but it is not required for the main frontend demo flow.
+
 ## Tech Stack
 
 | Layer | Technology |
