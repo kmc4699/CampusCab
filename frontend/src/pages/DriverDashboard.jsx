@@ -101,7 +101,6 @@ function DriverDashboard() {
     const notificationsQuery = query(
       collection(db, FIRESTORE_COLLECTIONS.notifications),
       where('recipientId', '==', user.uid),
-      where('type', '==', 'ride_request'),
       where('status', '==', NOTIFICATION_STATUS.unread),
     );
 
