@@ -468,7 +468,7 @@ function DriverDashboard() {
       setRequests((currentRequests) =>
         currentRequests.map((request) =>
           request.tripId === tripToCancel.id &&
-          (request.status || '').toLowerCase() === RIDE_REQUEST_STATUS.approved
+          (request.status || '').toLowerCase() !== RIDE_REQUEST_STATUS.cancelled
             ? {
                 ...request,
                 status: RIDE_REQUEST_STATUS.cancelled,
@@ -479,7 +479,7 @@ function DriverDashboard() {
         ),
       );
       setTripToCancel(null);
-      setMessage('Demo mode: Trip cancelled and approved passengers marked for notification.');
+      setMessage('Demo mode: Trip cancelled and passengers marked for notification.');
       return;
     }
 
@@ -514,15 +514,43 @@ function DriverDashboard() {
           throw new Error('Only scheduled trips can be cancelled.');
         }
 
+        // Identify all ride requests associated with the trip being cancelled
+        const tripRequests = requests.filter(
+          (r) => r.tripId === tripToCancel.id && r.status !== RIDE_REQUEST_STATUS.cancelled,
+        );
+
         transaction.update(tripRef, {
           status: TRIP_STATUS.cancelled,
           cancelledAt: serverTimestamp(),
           cancelledBy: user.uid,
         });
+
+        // Update each associated ride request and create notifications
+        tripRequests.forEach((request) => {
+          const requestRef = doc(db, FIRESTORE_COLLECTIONS.rideRequests, request.id);
+          const notificationRef = doc(collection(db, FIRESTORE_COLLECTIONS.notifications));
+
+          transaction.update(requestRef, {
+            status: RIDE_REQUEST_STATUS.cancelled,
+            cancelledAt: serverTimestamp(),
+            cancellationSource: 'driver_cancelled_trip',
+          });
+
+          transaction.set(notificationRef, {
+            type: 'trip_cancelled',
+            recipientId: request.passengerId,
+            tripId: tripToCancel.id,
+            requestId: request.id,
+            driverId: user.uid,
+            status: NOTIFICATION_STATUS.unread,
+            message: `The trip from ${tripToCancel.origin} to ${tripToCancel.destination} has been cancelled by the driver.`,
+            createdAt: serverTimestamp(),
+          });
+        });
       });
 
       setTripToCancel(null);
-      setMessage('Trip cancelled. Approved passengers will be alerted.');
+      setMessage('Trip cancelled. Passengers have been notified.');
     } catch (error) {
       setMessage(`Error: ${error.message || 'Unable to cancel this trip.'}`);
     } finally {
