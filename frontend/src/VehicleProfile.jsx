@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { db, auth } from './firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { FIRESTORE_COLLECTIONS } from './firestoreModel';
 import { buttons, colors, inputs, pills, radius, shadows, typography } from './theme';
 
 function Field({ label, helper, children }) {
@@ -52,7 +53,7 @@ function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
       if (!user) return;
 
       const vehicleData = { make, model, licensePlate };
-      await setDoc(doc(db, 'vehicles', user.uid), vehicleData);
+      await setDoc(doc(db, FIRESTORE_COLLECTIONS.vehicles, user.uid), vehicleData);
 
       setMessage('Vehicle details saved successfully.');
       setSavedVehicle(vehicleData);
