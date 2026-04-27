@@ -6,6 +6,7 @@ import Login from './Login';
 import VehicleProfile from './VehicleProfile';
 import CreateTrip from './CreateTrip';
 import { FIRESTORE_COLLECTIONS } from './firestoreModel';
+import useIsDesktop from './hooks/useIsDesktop';
 import DriverDashboard from './pages/DriverDashboard';
 import PassengerDashboard from './pages/PassengerDashboard';
 import Stepper from './components/Stepper';
@@ -16,20 +17,6 @@ const TABS = [
   { id: 'passenger', label: 'Passenger', icon: '🎒' },
   { id: 'admin', label: 'Admin', icon: '🛡️' },
 ];
-
-function useIsDesktop(breakpoint = 860) {
-  const query = `(min-width: ${breakpoint}px)`;
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia(query).matches : false,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const handler = (e) => setIsDesktop(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [query]);
-  return isDesktop;
-}
 
 function BrandMark({ size = 40 }) {
   return (
