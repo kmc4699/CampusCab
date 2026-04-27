@@ -56,6 +56,8 @@ function DriverDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [message, setMessage] = useState('');
   const [busyRequestId, setBusyRequestId] = useState('');
+  const [busyTripId, setBusyTripId] = useState('');
+  const [tripToCancel, setTripToCancel] = useState(null);
   const [pushStatus, setPushStatus] = useState('idle');
   const [pushMessage, setPushMessage] = useState('');
   const isDesktop = useIsDesktop();
@@ -194,7 +196,13 @@ function DriverDashboard() {
   );
 
   const driverTrips = useMemo(
-    () => [...trips].sort((a, b) => getTripTimeValue(b) - getTripTimeValue(a)),
+    () =>
+      trips
+        .filter((trip) => {
+          const status = (trip.status || TRIP_STATUS.active).toLowerCase();
+          return status === TRIP_STATUS.active || status === TRIP_STATUS.full;
+        })
+        .sort((a, b) => getTripTimeValue(b) - getTripTimeValue(a)),
     [trips],
   );
 
@@ -485,6 +493,87 @@ function DriverDashboard() {
     }
   };
 
+  const handleCancelTrip = async () => {
+    if (!tripToCancel) return;
+
+    if (!firebaseReady || !auth || !db) {
+      setTrips((currentTrips) =>
+        currentTrips.map((trip) =>
+          trip.id === tripToCancel.id
+            ? {
+                ...trip,
+                status: TRIP_STATUS.cancelled,
+                cancelledAt: new Date().toISOString(),
+                cancelledBy: 'demo-driver',
+              }
+            : trip,
+        ),
+      );
+      setRequests((currentRequests) =>
+        currentRequests.map((request) =>
+          request.tripId === tripToCancel.id &&
+          (request.status || '').toLowerCase() === RIDE_REQUEST_STATUS.approved
+            ? {
+                ...request,
+                status: RIDE_REQUEST_STATUS.cancelled,
+                cancelledAt: new Date().toISOString(),
+                cancellationSource: 'trip_cancelled',
+              }
+            : request,
+        ),
+      );
+      setTripToCancel(null);
+      setMessage('Demo mode: Trip cancelled and approved passengers marked for notification.');
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      setMessage('Error: Sign in as the driver before cancelling this trip.');
+      return;
+    }
+
+    setBusyTripId(tripToCancel.id);
+    setMessage('');
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const tripRef = doc(db, FIRESTORE_COLLECTIONS.trips, tripToCancel.id);
+        const tripSnap = await transaction.get(tripRef);
+
+        if (!tripSnap.exists()) throw new Error('Trip not found.');
+
+        const latestTrip = tripSnap.data();
+        const currentStatus = (latestTrip.status || TRIP_STATUS.active).toLowerCase();
+
+        if (latestTrip.driverId !== user.uid) {
+          throw new Error('Only the trip driver can cancel this trip.');
+        }
+
+        if (currentStatus === TRIP_STATUS.cancelled) {
+          throw new Error('This trip has already been cancelled.');
+        }
+
+        if (currentStatus !== TRIP_STATUS.active && currentStatus !== TRIP_STATUS.full) {
+          throw new Error('Only scheduled trips can be cancelled.');
+        }
+
+        transaction.update(tripRef, {
+          status: TRIP_STATUS.cancelled,
+          cancelledAt: serverTimestamp(),
+          cancelledBy: user.uid,
+        });
+      });
+
+      setTripToCancel(null);
+      setMessage('Trip cancelled. Approved passengers will be alerted.');
+    } catch (error) {
+      setMessage(`Error: ${error.message || 'Unable to cancel this trip.'}`);
+    } finally {
+      setBusyTripId('');
+    }
+  };
+
   const hasError = message.startsWith('Error');
   const pushButtonLabel =
     pushStatus === 'working'
@@ -695,6 +784,7 @@ function DriverDashboard() {
                 ? trip.availableSeats
                 : trip.seats;
               const isFull = (trip.status || '').toLowerCase() === TRIP_STATUS.full || remainingSeats === 0;
+              const isCancelling = busyTripId === trip.id;
 
               return (
                 <article
@@ -749,6 +839,21 @@ function DriverDashboard() {
                     <InfoItem label="Seats left" value={remainingSeats ?? '—'} accent />
                     <InfoItem label="Total seats" value={trip.seats ?? '—'} />
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setTripToCancel(trip)}
+                    disabled={isCancelling}
+                    style={{
+                      ...buttons.ghost,
+                      color: colors.danger,
+                      borderColor: 'rgba(220, 38, 38, 0.25)',
+                      opacity: isCancelling ? 0.7 : 1,
+                      cursor: isCancelling ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {isCancelling ? 'Cancelling...' : 'Cancel Trip'}
+                  </button>
                 </article>
               );
             })}
@@ -935,6 +1040,87 @@ function DriverDashboard() {
             : `${approvedRequests.length} passenger(s) confirmed across your trips.`}
         </div>
       </div>
+
+      {tripToCancel && (
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            zIndex: 50,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-trip-title"
+            style={{
+              width: '100%',
+              maxWidth: '430px',
+              borderRadius: radius.md,
+              backgroundColor: colors.surfaceSolid,
+              padding: '22px',
+              boxShadow: '0 20px 45px rgba(15, 23, 42, 0.24)',
+              textAlign: 'left',
+            }}
+          >
+            <h2 id="cancel-trip-title" style={{ ...typography.h2, marginTop: 0 }}>
+              Cancel trip?
+            </h2>
+            <p style={{ ...typography.body, marginTop: '8px' }}>
+              This removes the trip from passenger search and alerts approved passengers that the ride is no longer running.
+            </p>
+            <div
+              style={{
+                marginTop: '14px',
+                padding: '12px',
+                borderRadius: radius.md,
+                backgroundColor: colors.surfaceMuted,
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              <strong style={{ color: colors.text }}>
+                {tripToCancel.origin || 'Unknown origin'} → {tripToCancel.destination || 'Unknown destination'}
+              </strong>
+              <div style={{ ...typography.small, marginTop: '4px' }}>
+                {formatTripDeparture(tripToCancel.departureTime)}
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button
+                type="button"
+                onClick={() => setTripToCancel(null)}
+                disabled={Boolean(busyTripId)}
+                style={{
+                  ...buttons.ghost,
+                  cursor: busyTripId ? 'wait' : 'pointer',
+                }}
+              >
+                Keep Trip
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelTrip}
+                disabled={Boolean(busyTripId)}
+                style={{
+                  ...buttons.accent,
+                  width: 'auto',
+                  background: colors.danger,
+                  opacity: busyTripId ? 0.7 : 1,
+                  cursor: busyTripId ? 'wait' : 'pointer',
+                }}
+              >
+                {busyTripId ? 'Cancelling...' : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
