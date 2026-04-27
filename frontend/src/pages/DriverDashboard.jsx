@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, query, runTransaction, where } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase';
-import { FIRESTORE_COLLECTIONS } from '../firestoreModel';
+import { FIRESTORE_COLLECTIONS, RIDE_REQUEST_STATUS, TRIP_STATUS } from '../firestoreModel';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
 
 function useIsDesktop(breakpoint = 860) {
@@ -35,7 +35,7 @@ function DriverDashboard() {
           departureTime: new Date(Date.now() + 1000 * 60 * 60 * 3).toISOString(),
           availableSeats: 2,
           seats: 2,
-          status: 'active',
+          status: TRIP_STATUS.active,
         },
       ]);
       setRequests([
@@ -45,7 +45,7 @@ function DriverDashboard() {
           passengerName: 'Jamie Chen',
           passengerEmail: 'jamie.chen@autuni.ac.nz',
           note: 'I can meet near the main gate.',
-          status: 'pending',
+          status: RIDE_REQUEST_STATUS.pending,
         },
         {
           id: 'demo-request-2',
@@ -53,7 +53,7 @@ function DriverDashboard() {
           passengerName: 'Taylor Singh',
           passengerEmail: 'taylor.singh@autuni.ac.nz',
           note: 'Happy to chip in for parking.',
-          status: 'approved',
+          status: RIDE_REQUEST_STATUS.approved,
         },
       ]);
       return undefined;
@@ -102,13 +102,13 @@ function DriverDashboard() {
   const pendingRequests = useMemo(
     () =>
       requests
-        .filter((request) => (request.status || '').toLowerCase() === 'pending')
+        .filter((request) => (request.status || '').toLowerCase() === RIDE_REQUEST_STATUS.pending)
         .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)),
     [requests],
   );
 
   const approvedRequests = useMemo(
-    () => requests.filter((request) => (request.status || '').toLowerCase() === 'approved'),
+    () => requests.filter((request) => (request.status || '').toLowerCase() === RIDE_REQUEST_STATUS.approved),
     [requests],
   );
 
@@ -123,7 +123,7 @@ function DriverDashboard() {
       setRequests((currentRequests) =>
         currentRequests.map((item) =>
           item.id === requestId
-            ? { ...item, status: 'approved', decidedAt: new Date().toISOString() }
+            ? { ...item, status: RIDE_REQUEST_STATUS.approved, decidedAt: new Date().toISOString() }
             : item,
         ),
       );
@@ -134,7 +134,7 @@ function DriverDashboard() {
                 ...trip,
                 availableSeats: Math.max(0, (trip.availableSeats ?? trip.seats ?? 0) - 1),
                 status:
-                  (trip.availableSeats ?? trip.seats ?? 0) - 1 <= 0 ? 'full' : trip.status,
+                  (trip.availableSeats ?? trip.seats ?? 0) - 1 <= 0 ? TRIP_STATUS.full : trip.status,
               }
             : trip,
         ),
@@ -163,7 +163,7 @@ function DriverDashboard() {
         const tripData = tripSnap.data();
         const currentStatus = (latestRequest.status || '').toLowerCase();
 
-        if (currentStatus !== 'pending') {
+        if (currentStatus !== RIDE_REQUEST_STATUS.pending) {
           throw new Error('This request has already been processed.');
         }
 
@@ -178,12 +178,12 @@ function DriverDashboard() {
         const nextSeats = currentSeats - 1;
 
         transaction.update(requestRef, {
-          status: 'approved',
+          status: RIDE_REQUEST_STATUS.approved,
           decidedAt: new Date().toISOString(),
         });
         transaction.update(tripRef, {
           availableSeats: nextSeats,
-          status: nextSeats === 0 ? 'full' : tripData.status || 'active',
+          status: nextSeats === 0 ? TRIP_STATUS.full : tripData.status || TRIP_STATUS.active,
         });
       });
 
@@ -206,7 +206,7 @@ function DriverDashboard() {
       setRequests((currentRequests) =>
         currentRequests.map((item) =>
           item.id === requestId
-            ? { ...item, status: 'declined', decidedAt: new Date().toISOString() }
+            ? { ...item, status: RIDE_REQUEST_STATUS.declined, decidedAt: new Date().toISOString() }
             : item,
         ),
       );
@@ -225,12 +225,12 @@ function DriverDashboard() {
 
         const latestRequest = requestSnap.data();
         const currentStatus = (latestRequest.status || '').toLowerCase();
-        if (currentStatus !== 'pending') {
+        if (currentStatus !== RIDE_REQUEST_STATUS.pending) {
           throw new Error('This request has already been processed.');
         }
 
         transaction.update(requestRef, {
-          status: 'declined',
+          status: RIDE_REQUEST_STATUS.declined,
           decidedAt: new Date().toISOString(),
         });
       });

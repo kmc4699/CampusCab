@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { db, auth, firebaseReady } from './firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { buttons, colors, inputs, pills, radius, shadows, typography } from './theme';
-import { FIRESTORE_COLLECTIONS } from './firestoreModel';
+import { FIRESTORE_COLLECTIONS, TRIP_STATUS } from './firestoreModel';
 
 function useIsDesktop(breakpoint = 860) {
   const query = `(min-width: ${breakpoint}px)`;
@@ -115,7 +115,7 @@ function CreateTrip() {
           departureTime,
           seats: parseInt(seats, 10),
           availableSeats: parseInt(seats, 10),
-          status: 'active',
+          status: TRIP_STATUS.active,
         };
 
         setMessage('Demo mode: Trip preview updated locally.');
@@ -134,7 +134,7 @@ function CreateTrip() {
         departureTime,
         seats: parseInt(seats, 10),
         availableSeats: parseInt(seats, 10),
-        status: 'active',
+        status: TRIP_STATUS.active,
         createdAt: serverTimestamp(),
       };
 
