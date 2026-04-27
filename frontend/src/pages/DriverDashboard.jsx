@@ -33,6 +33,23 @@ async function getPushTokenDocId(userId, token) {
   return `${userId}_${tokenHash}`;
 }
 
+function getTripTimeValue(trip) {
+  const date = trip.createdAt?.toDate?.() || new Date(trip.createdAt || trip.departureTime || 0);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function formatTripDeparture(departureTime) {
+  if (!departureTime) return 'Departure not set';
+
+  const date = new Date(departureTime);
+  if (Number.isNaN(date.getTime())) return departureTime;
+
+  return date.toLocaleString([], {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
 function DriverDashboard() {
   const [trips, setTrips] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -173,6 +190,11 @@ function DriverDashboard() {
         accumulator[trip.id] = trip;
         return accumulator;
       }, {}),
+    [trips],
+  );
+
+  const driverTrips = useMemo(
+    () => [...trips].sort((a, b) => getTripTimeValue(b) - getTripTimeValue(a)),
     [trips],
   );
 
@@ -512,7 +534,7 @@ function DriverDashboard() {
             tone={unreadNotifications.length ? 'warning' : 'muted'}
           />
           <StatPill label="Approved" value={approvedRequests.length} tone="info" />
-          <StatPill label="Trips" value={trips.length} tone="muted" />
+          <StatPill label="Trips" value={driverTrips.length} tone="muted" />
         </div>
       </div>
 
@@ -615,6 +637,124 @@ function DriverDashboard() {
           {message}
         </p>
       )}
+
+      <section
+        style={{
+          marginTop: '18px',
+          textAlign: 'left',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '12px',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+            marginBottom: '12px',
+          }}
+        >
+          <div>
+            <div style={{ ...typography.eyebrow, color: colors.accent, marginBottom: '4px' }}>
+              Driver trips
+            </div>
+            <h3 style={{ ...typography.h2, margin: 0 }}>Your published trips</h3>
+          </div>
+          {firebaseReady && auth?.currentUser?.email && (
+            <span style={{ ...pills.base, ...pills.muted }}>
+              {auth.currentUser.email}
+            </span>
+          )}
+        </div>
+
+        {driverTrips.length === 0 ? (
+          <div
+            style={{
+              padding: '22px',
+              borderRadius: radius.lg,
+              border: `1px dashed ${colors.borderStrong}`,
+              backgroundColor: colors.surfaceMuted,
+              textAlign: 'center',
+            }}
+          >
+            <strong style={{ color: colors.text }}>No trips published yet</strong>
+            <p style={{ ...typography.body, marginTop: '4px', marginBottom: 0 }}>
+              Trips you create are saved to Firestore with your account ID and will appear here after refresh.
+            </p>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gap: '12px',
+              gridTemplateColumns: isDesktop ? 'repeat(auto-fill, minmax(260px, 1fr))' : '1fr',
+            }}
+          >
+            {driverTrips.map((trip) => {
+              const remainingSeats = Number.isFinite(trip.availableSeats)
+                ? trip.availableSeats
+                : trip.seats;
+              const isFull = (trip.status || '').toLowerCase() === TRIP_STATUS.full || remainingSeats === 0;
+
+              return (
+                <article
+                  key={trip.id}
+                  style={{
+                    padding: '16px',
+                    borderRadius: radius.lg,
+                    backgroundColor: colors.surfaceSolid,
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: shadows.soft,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '10px',
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          ...typography.h3,
+                          margin: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {trip.origin || 'Unknown origin'} → {trip.destination || 'Unknown destination'}
+                      </div>
+                      <div style={{ ...typography.small, marginTop: '4px' }}>
+                        {formatTripDeparture(trip.departureTime)}
+                      </div>
+                    </div>
+                    <span style={{ ...pills.base, ...(isFull ? pills.warning : pills.success), flexShrink: 0 }}>
+                      {isFull ? 'Full' : trip.status || TRIP_STATUS.active}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: '10px',
+                    }}
+                  >
+                    <InfoItem label="Seats left" value={remainingSeats ?? '—'} accent />
+                    <InfoItem label="Total seats" value={trip.seats ?? '—'} />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <div
         style={{
