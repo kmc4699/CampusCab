@@ -53,9 +53,13 @@ exports.onRideRequestCreated = functions.firestore
       .where('role', '==', 'driver')
       .get();
 
-    const tokens = tokensSnapshot.docs
-      .map((tokenDoc) => tokenDoc.data().token)
-      .filter(Boolean);
+    const tokenDocs = tokensSnapshot.docs
+      .map((tokenDoc) => ({
+        ref: tokenDoc.ref,
+        token: tokenDoc.data().token,
+      }))
+      .filter((tokenDoc) => Boolean(tokenDoc.token));
+    const tokens = tokenDocs.map((tokenDoc) => tokenDoc.token);
 
     if (tokens.length === 0) {
       functions.logger.info('No driver push tokens found for ride request.', {
@@ -94,6 +98,26 @@ exports.onRideRequestCreated = functions.firestore
       successCount: response.successCount,
       failureCount: response.failureCount,
     });
+
+    const staleTokenDeletes = response.responses
+      .map((result, index) => {
+        const errorCode = result.error?.code;
+        const isStaleToken =
+          errorCode === 'messaging/registration-token-not-registered' ||
+          errorCode === 'messaging/invalid-registration-token';
+
+        return isStaleToken ? tokenDocs[index].ref.delete() : null;
+      })
+      .filter(Boolean);
+
+    if (staleTokenDeletes.length > 0) {
+      await Promise.all(staleTokenDeletes);
+      functions.logger.info('Deleted stale driver push tokens.', {
+        driverId,
+        requestId: context.params.requestId,
+        deletedCount: staleTokenDeletes.length,
+      });
+    }
 
     return null;
   });
