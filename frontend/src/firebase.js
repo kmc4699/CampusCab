@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -42,3 +42,7 @@ export const firebaseReady = hasFirebaseConfig;
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export default app;
+
+if (auth) {
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
+}
