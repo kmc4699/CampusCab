@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase';
-import { FIRESTORE_COLLECTIONS, RIDE_REQUEST_STATUS } from '../firestoreModel';
+import { FIRESTORE_COLLECTIONS, NOTIFICATION_STATUS, RIDE_REQUEST_STATUS } from '../firestoreModel';
 import SearchTrips from './SearchTrips';
 
 function formatDeparture(departureTime) {
@@ -97,10 +97,35 @@ function PassengerDashboard() {
     setMessage('');
 
     try {
-      await updateDoc(doc(db, FIRESTORE_COLLECTIONS.rideRequests, rideToCancel.id), {
+      const batch = writeBatch(db);
+      const requestRef = doc(db, FIRESTORE_COLLECTIONS.rideRequests, rideToCancel.id);
+      const notificationRef = doc(collection(db, FIRESTORE_COLLECTIONS.notifications));
+      const driverId = rideToCancel.tripOwnerId || rideToCancel.trip?.driverId;
+      const passengerName = user.displayName || rideToCancel.passengerName || 'A passenger';
+      const seatsRequested = rideToCancel.seatsRequested || 1;
+
+      batch.update(requestRef, {
         status: RIDE_REQUEST_STATUS.cancelled,
         cancelledAt: serverTimestamp(),
       });
+
+      if (driverId) {
+        batch.set(notificationRef, {
+          type: 'seat_cancellation',
+          recipientId: driverId,
+          tripId: rideToCancel.tripId || '',
+          requestId: rideToCancel.id,
+          passengerId: user.uid,
+          passengerName,
+          passengerEmail: user.email || rideToCancel.passengerEmail || '',
+          seatsRequested,
+          status: NOTIFICATION_STATUS.unread,
+          message: `${passengerName} cancelled ${seatsRequested} seat reservation(s).`,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
 
       setRideToCancel(null);
       setMessage('Your seat reservation was cancelled.');
