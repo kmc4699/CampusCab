@@ -1,5 +1,12 @@
 const functions = require('firebase-functions');
+const admin = require('firebase-admin');
 const h3 = require('h3-js'); 
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+const db = admin.firestore();
 
 /**
  * Convert Lat/Long to an H3 index (Resolution 8) for future geospatial trip search.
@@ -24,6 +31,70 @@ exports.onTripCreated = functions.firestore
     // const h3Index = generateH3IndexForTrip(tripData.lat, tripData.lng);
     // return snap.ref.update({ h3Index });
     
+    return null;
+  });
+
+exports.onRideRequestCreated = functions.firestore
+  .document('rideRequests/{requestId}')
+  .onCreate(async (snap, context) => {
+    const requestData = snap.data();
+    const driverId = requestData.tripOwnerId;
+
+    if (!driverId) {
+      functions.logger.warn('Ride request has no tripOwnerId; skipping push notification.', {
+        requestId: context.params.requestId,
+      });
+      return null;
+    }
+
+    const tokensSnapshot = await db
+      .collection('pushTokens')
+      .where('userId', '==', driverId)
+      .where('role', '==', 'driver')
+      .get();
+
+    const tokens = tokensSnapshot.docs
+      .map((tokenDoc) => tokenDoc.data().token)
+      .filter(Boolean);
+
+    if (tokens.length === 0) {
+      functions.logger.info('No driver push tokens found for ride request.', {
+        driverId,
+        requestId: context.params.requestId,
+      });
+      return null;
+    }
+
+    const seatsRequested = requestData.seatsRequested || 1;
+    const passengerName = requestData.passengerName || 'A passenger';
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: 'New ride request',
+        body: `${passengerName} requested ${seatsRequested} seat(s).`,
+      },
+      data: {
+        type: 'ride_request',
+        requestId: context.params.requestId,
+        tripId: requestData.tripId || '',
+        url: '/',
+        body: `${passengerName} requested ${seatsRequested} seat(s).`,
+      },
+      webpush: {
+        fcmOptions: {
+          link: '/',
+        },
+      },
+    });
+
+    functions.logger.info('Ride request push notification sent.', {
+      driverId,
+      requestId: context.params.requestId,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+    });
+
     return null;
   });
 
