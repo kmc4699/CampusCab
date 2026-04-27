@@ -22,6 +22,10 @@ import useIsDesktop from '../hooks/useIsDesktop';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
 
 async function getPushTokenDocId(userId, token) {
+  if (!crypto?.subtle) {
+    return `${userId}_${token.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  }
+
   const encodedToken = new TextEncoder().encode(token);
   const hashBuffer = await crypto.subtle.digest('SHA-256', encodedToken);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -127,6 +131,41 @@ function DriverDashboard() {
       unsubscribeRequests();
       unsubscribeNotifications();
     };
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseReady || !auth || !db) {
+      setPushStatus('unavailable');
+      setPushMessage('Push notifications need Firebase to be configured.');
+      return;
+    }
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setPushStatus('unavailable');
+      setPushMessage('This browser does not support push notifications.');
+      return;
+    }
+
+    if (!vapidKey) {
+      setPushStatus('unavailable');
+      setPushMessage('Missing VITE_FIREBASE_VAPID_KEY. Add the Firebase Web Push certificate key first.');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setPushStatus('denied');
+      setPushMessage('Browser notifications are blocked. Update browser permissions to enable them.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setPushStatus('idle');
+      setPushMessage('Push permission is allowed. Refresh this browser registration.');
+      return;
+    }
+
+    setPushStatus('idle');
+    setPushMessage('Enable browser alerts for new passenger ride requests.');
   }, []);
 
   const tripsById = useMemo(
@@ -408,6 +447,14 @@ function DriverDashboard() {
   };
 
   const hasError = message.startsWith('Error');
+  const pushButtonLabel =
+    pushStatus === 'working'
+      ? 'Enabling...'
+      : pushStatus === 'ready'
+        ? 'Enabled'
+        : 'Notification' in window && Notification.permission === 'granted'
+          ? 'Refresh token'
+          : 'Enable push';
 
   return (
     <div style={{ padding: '22px' }}>
@@ -532,7 +579,7 @@ function DriverDashboard() {
             opacity: pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied' ? 0.65 : 1,
           }}
         >
-          {pushStatus === 'working' ? 'Enabling...' : pushStatus === 'ready' ? 'Enabled' : 'Enable push'}
+          {pushButtonLabel}
         </button>
       </div>
 
