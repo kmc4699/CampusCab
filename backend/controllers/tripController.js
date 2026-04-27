@@ -3,6 +3,11 @@ const Trip = require('../models/Trip');
 // h3-js is used to convert lat/lng coordinates into an H3 geospatial index cell
 // const { latLngToCell } = require('h3-js');
 
+const sendPlannedApiResponse = (res, action) =>
+  res.status(501).json({
+    error: `${action} is planned for the Express API but is not part of the active direct Firestore flow yet.`,
+  });
+
 /**
  * Firestore Schema — tripListings collection
  * {
@@ -36,7 +41,7 @@ const Trip = require('../models/Trip');
  * 4. Return 201 Created with the new tripId
  */
 const createTrip = async (req, res) => {
-  // TODO: implement createTrip
+  return sendPlannedApiResponse(res, 'Trip creation');
 };
 
 /**
@@ -100,7 +105,7 @@ const searchTrips = async (req, res) => {
  * 3. Return full trip + vehicle info
  */
 const getTripById = async (req, res) => {
-  // TODO: implement getTripById
+  return sendPlannedApiResponse(res, 'Trip details');
 };
 
 /**
@@ -109,7 +114,7 @@ const getTripById = async (req, res) => {
  * 2. Update tripStatus to "Cancelled" in Firestore
  */
 const cancelTrip = async (req, res) => {
-  // TODO: implement cancelTrip
+  return sendPlannedApiResponse(res, 'Trip cancellation');
 };
 
 module.exports = { createTrip, searchTrips, getTripById, cancelTrip };
