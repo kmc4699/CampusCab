@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { db, auth, firebaseReady } from './firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { buttons, colors, inputs, pills, radius, shadows, typography } from './theme';
+import { FIRESTORE_COLLECTIONS } from './firestoreModel';
 
 function useIsDesktop(breakpoint = 860) {
   const query = `(min-width: ${breakpoint}px)`;
@@ -137,7 +138,7 @@ function CreateTrip() {
         createdAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, 'trips'), tripData);
+      await addDoc(collection(db, FIRESTORE_COLLECTIONS.trips), tripData);
 
       setMessage('Success! Trip published to the feed.');
       setRecentTrip(tripData);
