@@ -11,6 +11,14 @@ function hasAvailableSeats(trip) {
   return Number(trip.availableSeats) > 0;
 }
 
+function formatDeparture(departureTime) {
+  if (!departureTime) return 'Departure time unavailable';
+  return new Date(departureTime).toLocaleString([], {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
 const SearchTrips = () => {
   const [campus, setCampus] = useState('');
   const [date, setDate] = useState('');
@@ -118,7 +126,7 @@ const SearchTrips = () => {
               <li key={trip.id} style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '10px', borderRadius: '5px' }}>
                 <p><strong>Origin:</strong> {trip.origin}</p>
                 <p><strong>Destination:</strong> {trip.destination}</p>
-                <p><strong>Departure:</strong> {new Date(trip.departureTime).toLocaleString()}</p>
+                <p><strong>Departure:</strong> {formatDeparture(trip.departureTime)}</p>
                 <p><strong>Available Seats:</strong> {trip.availableSeats}</p>
                 {/* Add a button to view details or book */}
                 <button style={{ marginTop: '10px', padding: '5px 10px' }}>View Details</button>
