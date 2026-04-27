@@ -1,5 +1,10 @@
 const { db, auth } = require('../config/firebaseConfig');
 
+const sendPlannedApiResponse = (res, action) =>
+  res.status(501).json({
+    error: `${action} is planned for the Express API but is not part of the active direct Firestore flow yet.`,
+  });
+
 /**
  * Firestore Schema — users collection
  * {
@@ -29,7 +34,7 @@ const { db, auth } = require('../config/firebaseConfig');
  * 4. Return 201 Created with the new userId
  */
 const registerUser = async (req, res) => {
-  // TODO: implement registration flow
+  return sendPlannedApiResponse(res, 'Registration');
 };
 
 /**
@@ -39,7 +44,7 @@ const registerUser = async (req, res) => {
  * 3. Return user profile from Firestore
  */
 const loginUser = async (req, res) => {
-  // TODO: implement login flow
+  return sendPlannedApiResponse(res, 'Login');
 };
 
 /**
@@ -47,7 +52,7 @@ const loginUser = async (req, res) => {
  * 1. Optionally revoke Firebase refresh tokens via auth.revokeRefreshTokens(uid)
  */
 const logoutUser = async (req, res) => {
-  // TODO: implement logout flow
+  return sendPlannedApiResponse(res, 'Logout');
 };
 
 module.exports = { registerUser, loginUser, logoutUser };
