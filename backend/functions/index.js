@@ -17,6 +17,16 @@ const TRIP_STATUS = {
   full: 'full',
 };
 
+const getPositiveInteger = (value, fallback = 1) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const getNonNegativeInteger = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
 exports.onRideRequestCreated = functions.firestore
   .document('rideRequests/{requestId}')
   .onCreate(async (snap, context) => {
@@ -120,14 +130,28 @@ exports.onApprovedRideRequestCancelled = functions.firestore
       return null;
     }
 
-    const tripRef = db.collection('trips').doc(afterData.tripId);
+    if (!afterData.tripId) {
+      functions.logger.warn('Cancelled approved ride request has no tripId; skipping seat restore.', {
+        requestId: context.params.requestId,
+      });
+      return null;
+    }
 
-    await db.runTransaction(async (transaction) => {
+    const restoreResult = await db.runTransaction(async (transaction) => {
+      const tripRef = db.collection('trips').doc(afterData.tripId);
       const tripSnap = await transaction.get(tripRef);
+      if (!tripSnap.exists) {
+        functions.logger.warn('Cancelled approved ride request points to a missing trip; skipping seat restore.', {
+          requestId: context.params.requestId,
+          tripId: afterData.tripId,
+        });
+        return null;
+      }
+
       const tripData = tripSnap.data();
-      const seatsRequested = afterData.seatsRequested || 1;
-      const currentSeats = tripData.availableSeats || 0;
-      const totalSeats = tripData.seats;
+      const seatsRequested = getPositiveInteger(afterData.seatsRequested, 1);
+      const totalSeats = getPositiveInteger(tripData.seats, seatsRequested);
+      const currentSeats = getNonNegativeInteger(tripData.availableSeats, totalSeats);
       const nextSeats = Math.min(currentSeats + seatsRequested, totalSeats);
       const tripUpdate = {
         availableSeats: nextSeats,
@@ -138,11 +162,21 @@ exports.onApprovedRideRequestCancelled = functions.firestore
       }
 
       transaction.update(tripRef, tripUpdate);
+      return {
+        seatsRequested,
+        restoredSeats: nextSeats - currentSeats,
+      };
     });
+
+    if (!restoreResult) {
+      return null;
+    }
 
     functions.logger.info('Restored seats after approved ride request cancellation.', {
       requestId: context.params.requestId,
       tripId: afterData.tripId,
+      seatsRequested: restoreResult.seatsRequested,
+      restoredSeats: restoreResult.restoredSeats,
     });
 
     return null;
