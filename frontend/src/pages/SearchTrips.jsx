@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const SearchTrips = () => {
   const [campus, setCampus] = useState('');
@@ -15,21 +17,38 @@ const SearchTrips = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/trips/search?campus=${encodeURIComponent(campus)}&date=${encodeURIComponent(date)}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch trips');
+      if (!db) {
+        throw new Error("Firebase database is not initialized.");
       }
 
-      const data = await response.json();
+      // Query trips by destination and active status.
+      // Filtering by exact date and availableSeats > 0 is done locally to avoid complex Firestore composite index requirements.
+      const tripsRef = collection(db, 'trips');
+      const q = query(
+        tripsRef,
+        where('destination', '==', campus),
+        where('status', '==', 'active')
+      );
+
+      const querySnapshot = await getDocs(q);
+      const results = [];
       
-      // The backend returns an array of trips or { message: "No rides available", trips: [] }
-      if (data.trips && data.trips.length === 0) {
-        setTrips([]);
-      } else {
-        setTrips(data);
-      }
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        // date is from an input type="date", so it looks like "2026-04-27"
+        // data.departureTime is a datetime-local string like "2026-04-27T10:00"
+        if (
+          data.departureTime && 
+          data.departureTime.startsWith(date) &&
+          data.availableSeats > 0
+        ) {
+          results.push({ id: doc.id, ...data });
+        }
+      });
+
+      setTrips(results);
     } catch (err) {
+      console.error(err);
       setError(err.message || 'An error occurred while searching for trips.');
     } finally {
       setLoading(false);
@@ -91,10 +110,10 @@ const SearchTrips = () => {
         {!loading && hasSearched && trips.length > 0 && (
           <ul style={{ listStyleType: 'none', padding: 0 }}>
             {trips.map((trip) => (
-              <li key={trip.id || trip.tripId} style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '10px', borderRadius: '5px' }}>
-                <p><strong>Origin:</strong> {trip.originArea}</p>
-                <p><strong>Destination:</strong> {trip.destinationCampus}</p>
-                <p><strong>Departure Date:</strong> {trip.departureDate}</p>
+              <li key={trip.id} style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '10px', borderRadius: '5px' }}>
+                <p><strong>Origin:</strong> {trip.origin}</p>
+                <p><strong>Destination:</strong> {trip.destination}</p>
+                <p><strong>Departure:</strong> {new Date(trip.departureTime).toLocaleString()}</p>
                 <p><strong>Available Seats:</strong> {trip.availableSeats}</p>
                 {/* Add a button to view details or book */}
                 <button style={{ marginTop: '10px', padding: '5px 10px' }}>View Details</button>
