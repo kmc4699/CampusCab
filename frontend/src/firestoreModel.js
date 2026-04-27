@@ -15,6 +15,7 @@ export const RIDE_REQUEST_STATUS = {
   pending: 'pending',
   approved: 'approved',
   declined: 'declined',
+  cancelled: 'cancelled',
 };
 
 export const NOTIFICATION_STATUS = {
