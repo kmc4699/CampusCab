@@ -40,8 +40,6 @@ const SearchTrips = () => {
         return;
       }
 
-      // Query trips by destination and active status.
-      // Filtering by exact date and availableSeats > 0 is done locally to avoid complex Firestore composite index requirements.
       const tripsRef = collection(db, FIRESTORE_COLLECTIONS.trips);
       const q = query(
         tripsRef,
@@ -54,8 +52,6 @@ const SearchTrips = () => {
       
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        // date is from an input type="date", so it looks like "2026-04-27"
-        // data.departureTime is a datetime-local string like "2026-04-27T10:00"
         if (isSameDepartureDate(data.departureTime, date) && hasAvailableSeats(data)) {
           results.push({ id: doc.id, ...data });
         }
@@ -130,8 +126,6 @@ const SearchTrips = () => {
                 <p><strong>Destination:</strong> {trip.destination}</p>
                 <p><strong>Departure:</strong> {formatDeparture(trip.departureTime)}</p>
                 <p><strong>Available Seats:</strong> {trip.availableSeats}</p>
-                {/* Add a button to view details or book */}
-                <button style={{ marginTop: '10px', padding: '5px 10px' }}>View Details</button>
               </li>
             ))}
           </ul>
