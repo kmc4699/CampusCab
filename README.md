@@ -100,22 +100,24 @@ node server.js
 
 For backend Firebase Admin access, set `GOOGLE_APPLICATION_CREDENTIALS` or the service-account fields in `backend/.env`.
 
-## API Routes
+## Planned Express API Routes
+
+These routes are mounted by the backend, but they currently return `501 Not Implemented` unless a handler has been explicitly completed. The active frontend does not depend on them.
 
 ### Auth — `/api/auth`
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/register` | Register with `.ac.nz` email |
-| POST | `/login` | Verify Firebase ID token |
-| POST | `/logout` | Revoke session |
+| POST | `/register` | Planned registration endpoint |
+| POST | `/login` | Planned Firebase ID token profile endpoint |
+| POST | `/logout` | Planned session revocation endpoint |
 
 ### Trips — `/api/trips`
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/` | Driver creates a trip listing |
-| GET | `/search?campus=&date=` | Search available trips |
-| GET | `/:id` | Get trip details |
-| DELETE | `/:id` | Cancel a trip |
+| POST | `/` | Planned trip creation endpoint |
+| GET | `/search?campus=&date=` | Planned trip search endpoint |
+| GET | `/:id` | Planned trip details endpoint |
+| DELETE | `/:id` | Planned trip cancellation endpoint |
 
 ### Bookings — `/api/bookings`
 | Method | Endpoint | Description |
