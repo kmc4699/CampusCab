@@ -8,6 +8,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const RIDE_REQUEST_STATUS = {
+  pending: 'pending',
   approved: 'approved',
   cancelled: 'cancelled',
 };
@@ -142,14 +143,22 @@ exports.onTripCancelled = functions.firestore
     }
 
     const tripId = context.params.tripId;
-    const approvedRequestsSnapshot = await db
+    const requestsSnapshot = await db
       .collection('rideRequests')
       .where('tripId', '==', tripId)
-      .where('status', '==', RIDE_REQUEST_STATUS.approved)
       .get();
 
-    if (approvedRequestsSnapshot.empty) {
-      functions.logger.info('Cancelled trip had no approved passengers.', { tripId });
+    const affectedRequests = requestsSnapshot.docs.filter((doc) => {
+      const status = (doc.data().status || '').toLowerCase();
+      return (
+        status === RIDE_REQUEST_STATUS.approved ||
+        status === RIDE_REQUEST_STATUS.pending ||
+        (status === RIDE_REQUEST_STATUS.cancelled && doc.data().cancellationSource === 'driver_cancelled_trip')
+      );
+    });
+
+    if (affectedRequests.length === 0) {
+      functions.logger.info('Cancelled trip had no pending or approved passengers.', { tripId });
       return null;
     }
 
@@ -159,31 +168,37 @@ exports.onTripCancelled = functions.firestore
     const destination = afterData.destination || 'campus';
     const notificationMessage = `Your ride from ${origin} to ${destination} was cancelled by the driver.`;
 
-    approvedRequestsSnapshot.docs.forEach((requestDoc) => {
+    affectedRequests.forEach((requestDoc) => {
       const requestData = requestDoc.data();
       const passengerId = requestData.passengerId;
+      const currentStatus = (requestData.status || '').toLowerCase();
 
-      batch.update(requestDoc.ref, {
-        status: RIDE_REQUEST_STATUS.cancelled,
-        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-        cancellationSource: 'trip_cancelled',
-        cancelledTripId: tripId,
-      });
+      if (currentStatus !== RIDE_REQUEST_STATUS.cancelled) {
+        batch.update(requestDoc.ref, {
+          status: RIDE_REQUEST_STATUS.cancelled,
+          cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+          cancellationSource: 'trip_cancelled',
+          cancelledTripId: tripId,
+        });
+      }
 
       if (!passengerId) return;
 
       passengerIds.add(passengerId);
-      batch.set(db.collection('notifications').doc(), {
-        type: 'trip_cancelled',
-        recipientId: passengerId,
-        tripId,
-        requestId: requestDoc.id,
-        driverId: afterData.driverId || '',
-        passengerId,
-        status: NOTIFICATION_STATUS.unread,
-        message: notificationMessage,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      
+      if (requestData.cancellationSource !== 'driver_cancelled_trip') {
+        batch.set(db.collection('notifications').doc(), {
+          type: 'trip_cancelled',
+          recipientId: passengerId,
+          tripId,
+          requestId: requestDoc.id,
+          driverId: afterData.driverId || '',
+          passengerId,
+          status: NOTIFICATION_STATUS.unread,
+          message: notificationMessage,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
     });
 
     await batch.commit();
