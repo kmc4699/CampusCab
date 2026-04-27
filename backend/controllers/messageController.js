@@ -6,8 +6,8 @@ const sendPlannedApiResponse = (res, action) =>
   });
 
 /**
- * Firestore Schema — messages sub-collection under tripListings
- * tripListings/{tripId}/messages/{messageId}
+ * Planned Firestore Schema — messages sub-collection under trips
+ * trips/{tripId}/messages/{messageId}
  * {
  *   messageId: string,
  *   senderId: string,
