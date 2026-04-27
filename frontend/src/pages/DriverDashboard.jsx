@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getToken } from 'firebase/messaging';
 import {
   collection,
   doc,
@@ -7,11 +6,10 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { auth, db, firebaseReady, messaging, vapidKey } from '../firebase';
+import { auth, db, firebaseReady, vapidKey } from '../firebase';
 import {
   FIRESTORE_COLLECTIONS,
   NOTIFICATION_STATUS,
@@ -20,18 +18,7 @@ import {
 } from '../firestoreModel';
 import useIsDesktop from '../hooks/useIsDesktop';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
-
-async function getPushTokenDocId(userId, token) {
-  if (!crypto?.subtle) {
-    return `${userId}_${token.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-  }
-
-  const encodedToken = new TextEncoder().encode(token);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encodedToken);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const tokenHash = hashArray.map((byte) => byte.toString(16).padStart(2, '0')).join('');
-  return `${userId}_${tokenHash}`;
-}
+import { registerBrowserPushToken } from '../utils/pushNotifications';
 
 function getTripTimeValue(trip) {
   const date = trip.createdAt?.toDate?.() || new Date(trip.createdAt || trip.departureTime || 0);
@@ -300,38 +287,7 @@ function DriverDashboard() {
         return;
       }
 
-      const messagingInstance = await messaging;
-      if (!messagingInstance) {
-        setPushStatus('unavailable');
-        setPushMessage('Firebase Messaging is not supported in this browser.');
-        return;
-      }
-
-      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      const token = await getToken(messagingInstance, {
-        vapidKey,
-        serviceWorkerRegistration: registration,
-      });
-
-      if (!token) {
-        setPushStatus('unavailable');
-        setPushMessage('Firebase did not return a push token for this browser.');
-        return;
-      }
-
-      const tokenDocId = await getPushTokenDocId(user.uid, token);
-      await setDoc(
-        doc(db, FIRESTORE_COLLECTIONS.pushTokens, tokenDocId),
-        {
-          userId: user.uid,
-          token,
-          role: 'driver',
-          userAgent: navigator.userAgent,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
+      await registerBrowserPushToken(user, 'driver');
 
       setPushStatus('ready');
       setPushMessage('Push notifications are enabled for this browser.');
