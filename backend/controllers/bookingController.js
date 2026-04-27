@@ -1,81 +1,252 @@
-const { db } = require('../config/firebaseConfig');
+const { admin, db } = require('../config/firebaseConfig');
 
-const sendPlannedApiResponse = (res, action) =>
-  res.status(501).json({
-    error: `${action} is planned for the Express API but is not part of the active direct Firestore flow yet.`,
+const RIDE_REQUEST_STATUS = {
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+  cancelled: 'cancelled',
+};
+
+const TRIP_STATUS = {
+  active: 'active',
+  full: 'full',
+};
+
+const getNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getRequestUserId = (req) =>
+  req.body.userId || req.body.passengerId || req.body.driverId || req.headers['x-user-id'];
+
+const createDriverNotification = (transaction, requestRef, tripData, requestData) => {
+  const notificationRef = db.collection('notifications').doc();
+
+  transaction.set(notificationRef, {
+    type: 'ride_request',
+    recipientId: tripData.driverId,
+    tripId: requestData.tripId,
+    requestId: requestRef.id,
+    passengerId: requestData.passengerId,
+    passengerName: requestData.passengerName || 'Passenger',
+    passengerEmail: requestData.passengerEmail || '',
+    seatsRequested: requestData.seatsRequested,
+    status: 'unread',
+    message: `${requestData.passengerName || 'A passenger'} requested ${requestData.seatsRequested} seat(s).`,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
-
-/**
- * Firestore Schema — rideRequests collection
- * {
- *   requestId: string,
- *   tripId: string,           // reference to trips/{tripId}
- *   passengerId: string,      // reference to users/{userId}
- *   requestDate: string,      // ISO timestamp
- *   seatsRequested: number,
- *   status: string,           // "pending" | "approved" | "declined"
- *   pickupLocation: string,
- *   note: string,
- * }
- */
+};
 
 /**
  * POST /api/bookings
- * Sequence Diagram — Story 9: The Request
- * 1. Verify the requesting user is a Passenger
- * 2. Create a new RideRequest document in Firestore with status = "pending"
- * 3. Trigger a notification to the driver (push/real-time — to be implemented)
- * 4. Return 201 Created with the new requestId
+ * Creates a pending ride request and a dashboard notification for the trip's driver.
  */
 const requestToJoin = async (req, res) => {
-  return sendPlannedApiResponse(res, 'Booking requests');
+  const {
+    tripId,
+    passengerId,
+    passengerName = 'Passenger',
+    passengerEmail = '',
+    seatsRequested = 1,
+    note = '',
+  } = req.body;
+
+  if (!tripId || !passengerId) {
+    return res.status(400).json({ error: 'tripId and passengerId are required.' });
+  }
+
+  const requestedSeats = getNumber(seatsRequested, 1);
+  if (!Number.isInteger(requestedSeats) || requestedSeats < 1) {
+    return res.status(400).json({ error: 'seatsRequested must be a positive integer.' });
+  }
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const tripRef = db.collection('trips').doc(tripId);
+      const tripSnap = await transaction.get(tripRef);
+
+      if (!tripSnap.exists) {
+        throw Object.assign(new Error('Trip not found.'), { statusCode: 404 });
+      }
+
+      const tripData = tripSnap.data();
+      const currentSeats = getNumber(tripData.availableSeats, tripData.seats);
+
+      if (tripData.status === TRIP_STATUS.full || currentSeats < requestedSeats) {
+        throw Object.assign(new Error('Not enough seats available for this trip.'), { statusCode: 409 });
+      }
+
+      const requestRef = db.collection('rideRequests').doc();
+      const requestData = {
+        tripId,
+        tripOwnerId: tripData.driverId,
+        passengerId,
+        passengerName,
+        passengerEmail,
+        seatsRequested: requestedSeats,
+        note,
+        status: RIDE_REQUEST_STATUS.pending,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      transaction.set(requestRef, requestData);
+      createDriverNotification(transaction, requestRef, tripData, requestData);
+
+      return { requestId: requestRef.id };
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
 };
 
 /**
  * PUT /api/bookings/:id/approve
- * Sequence Diagram — Story 11 & 12: Approval & Automation (CRITICAL)
- * Uses a Firestore Atomic Transaction to prevent race conditions.
- *
- * Transaction steps:
- * 1. Read the RideRequest document by requestId
- * 2. Read the associated Trip document
- * 3. Check that trip.availableSeats > 0 — abort if not
- * 4. Update RideRequest.status to "approved"
- * 5. Decrement Trip.availableSeats by 1
- * 6. If availableSeats reaches 0, update Trip.status to "full"
- * 7. Commit the transaction
- *
- * Example:
- * await db.runTransaction(async (transaction) => {
- *   const requestRef = db.collection('rideRequests').doc(requestId);
- *   const requestSnap = await transaction.get(requestRef);
- *   const tripRef = db.collection('trips').doc(requestSnap.data().tripId);
- *   const tripSnap = await transaction.get(tripRef);
- *   if (tripSnap.data().availableSeats <= 0) throw new Error('No seats available');
- *   transaction.update(requestRef, { status: 'approved' });
- *   transaction.update(tripRef, { availableSeats: tripSnap.data().availableSeats - 1 });
- * });
+ * Approves a pending request and deducts the requested seats atomically.
  */
 const approveRequest = async (req, res) => {
-  return sendPlannedApiResponse(res, 'Booking approval');
+  const driverId = getRequestUserId(req);
+
+  if (!driverId) {
+    return res.status(400).json({ error: 'driverId or x-user-id is required.' });
+  }
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const requestRef = db.collection('rideRequests').doc(req.params.id);
+      const requestSnap = await transaction.get(requestRef);
+
+      if (!requestSnap.exists) {
+        throw Object.assign(new Error('Request not found.'), { statusCode: 404 });
+      }
+
+      const requestData = requestSnap.data();
+      if (requestData.tripOwnerId !== driverId) {
+        throw Object.assign(new Error('Only the trip driver can approve this request.'), { statusCode: 403 });
+      }
+
+      if ((requestData.status || '').toLowerCase() !== RIDE_REQUEST_STATUS.pending) {
+        throw Object.assign(new Error('This request has already been processed.'), { statusCode: 409 });
+      }
+
+      const tripRef = db.collection('trips').doc(requestData.tripId);
+      const tripSnap = await transaction.get(tripRef);
+
+      if (!tripSnap.exists) {
+        throw Object.assign(new Error('Trip not found.'), { statusCode: 404 });
+      }
+
+      const tripData = tripSnap.data();
+      const requestedSeats = getNumber(requestData.seatsRequested, 1);
+      const currentSeats = getNumber(tripData.availableSeats, tripData.seats);
+
+      if (currentSeats < requestedSeats) {
+        throw Object.assign(
+          new Error(`Not enough seats available. (Requested: ${requestedSeats}, Available: ${currentSeats})`),
+          { statusCode: 409 },
+        );
+      }
+
+      const nextSeats = currentSeats - requestedSeats;
+
+      transaction.update(requestRef, {
+        status: RIDE_REQUEST_STATUS.approved,
+        decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      transaction.update(tripRef, {
+        availableSeats: nextSeats,
+        status: nextSeats === 0 ? TRIP_STATUS.full : tripData.status || TRIP_STATUS.active,
+      });
+    });
+
+    return res.json({ status: RIDE_REQUEST_STATUS.approved });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
 };
 
 /**
  * PUT /api/bookings/:id/decline
- * 1. Verify the requesting user is the trip's driver
- * 2. Update RideRequest.status to "declined"
+ * Declines a pending request owned by the current driver.
  */
 const declineRequest = async (req, res) => {
-  return sendPlannedApiResponse(res, 'Booking decline');
+  const driverId = getRequestUserId(req);
+
+  if (!driverId) {
+    return res.status(400).json({ error: 'driverId or x-user-id is required.' });
+  }
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const requestRef = db.collection('rideRequests').doc(req.params.id);
+      const requestSnap = await transaction.get(requestRef);
+
+      if (!requestSnap.exists) {
+        throw Object.assign(new Error('Request not found.'), { statusCode: 404 });
+      }
+
+      const requestData = requestSnap.data();
+      if (requestData.tripOwnerId !== driverId) {
+        throw Object.assign(new Error('Only the trip driver can decline this request.'), { statusCode: 403 });
+      }
+
+      if ((requestData.status || '').toLowerCase() !== RIDE_REQUEST_STATUS.pending) {
+        throw Object.assign(new Error('This request has already been processed.'), { statusCode: 409 });
+      }
+
+      transaction.update(requestRef, {
+        status: RIDE_REQUEST_STATUS.declined,
+        decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return res.json({ status: RIDE_REQUEST_STATUS.declined });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
 };
 
 /**
  * DELETE /api/bookings/:id
- * 1. Verify the requesting user is the passenger who made the request
- * 2. Update RideRequest.status to "cancelled" (or delete document)
+ * Cancels a pending request owned by the current passenger.
  */
 const cancelRequest = async (req, res) => {
-  return sendPlannedApiResponse(res, 'Booking cancellation');
+  const passengerId = getRequestUserId(req);
+
+  if (!passengerId) {
+    return res.status(400).json({ error: 'passengerId or x-user-id is required.' });
+  }
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const requestRef = db.collection('rideRequests').doc(req.params.id);
+      const requestSnap = await transaction.get(requestRef);
+
+      if (!requestSnap.exists) {
+        throw Object.assign(new Error('Request not found.'), { statusCode: 404 });
+      }
+
+      const requestData = requestSnap.data();
+      if (requestData.passengerId !== passengerId) {
+        throw Object.assign(new Error('Only the requesting passenger can cancel this request.'), { statusCode: 403 });
+      }
+
+      if ((requestData.status || '').toLowerCase() !== RIDE_REQUEST_STATUS.pending) {
+        throw Object.assign(new Error('Only pending requests can be cancelled.'), { statusCode: 409 });
+      }
+
+      transaction.update(requestRef, {
+        status: RIDE_REQUEST_STATUS.cancelled,
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return res.json({ status: RIDE_REQUEST_STATUS.cancelled });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
 };
 
 module.exports = { requestToJoin, approveRequest, declineRequest, cancelRequest };

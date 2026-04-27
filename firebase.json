@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "source": "backend/functions"
+  },
   "hosting": {
     "public": "frontend/dist",
     "ignore": [

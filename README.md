@@ -14,7 +14,7 @@ The active app flow is:
 React frontend → Firebase Auth / Firestore
 ```
 
-Driver trip creation, vehicle profiles, driver request handling, and passenger trip search use the Firebase client SDK directly against hosted Firestore. The Express backend remains in the repo as a planned secondary API surface, but it is not required for the main frontend demo flow.
+Driver trip creation, vehicle profiles, driver request handling, passenger trip search, and in-app request alerts use the Firebase client SDK directly against hosted Firestore. Browser push notifications are sent by Firebase Cloud Functions when ride requests are created. The Express backend remains in the repo as a planned secondary API surface, but it is not required for the main frontend demo flow.
 
 ## Tech Stack
 
@@ -24,6 +24,7 @@ Driver trip creation, vehicle profiles, driver request handling, and passenger t
 | Backend | Node.js 24.14.0 + Express.js |
 | Database | Firebase Firestore (NoSQL) |
 | Authentication | Firebase Authentication |
+| Push | Firebase Cloud Messaging + Cloud Functions |
 | Geospatial | h3-js |
 
 ## Project Structure
@@ -80,7 +81,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `frontend/.env` with the Firebase web app values from Firebase Console.
+Edit `frontend/.env` with the Firebase web app values from Firebase Console. Browser push notifications also require `VITE_FIREBASE_VAPID_KEY`, found in Firebase Console → Project settings → Cloud Messaging → Web Push certificates.
 
 ```bash
 npm run dev
@@ -101,9 +102,24 @@ node server.js
 
 For backend Firebase Admin access, set `GOOGLE_APPLICATION_CREDENTIALS` or the service-account fields in `backend/.env`.
 
-## Planned Express API Routes
+### 4. Optional Cloud Functions setup for browser push
 
-These routes are mounted by the backend, but they currently return `501 Not Implemented` unless a handler has been explicitly completed. The active frontend does not depend on them.
+```bash
+cd backend/functions
+npm install
+```
+
+Deploy Functions from the repo root when Firebase CLI is signed in to `campuscab-63e48`:
+
+```bash
+firebase deploy --only functions
+```
+
+To test push notifications, sign in as a driver, open the driver dashboard, enable browser push alerts, then request that driver's trip from a passenger account. The driver should see the in-app dashboard alert and, when the browser allows it, a browser push notification.
+
+## Express API Routes
+
+These routes are mounted by the backend. Auth, trips, and messages are still planned API surfaces. Bookings are implemented and mirror the active Firestore request flow.
 
 ### Auth — `/api/auth`
 | Method | Endpoint | Description |
@@ -123,7 +139,7 @@ These routes are mounted by the backend, but they currently return `501 Not Impl
 ### Bookings — `/api/bookings`
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/` | Passenger requests to join a trip |
+| POST | `/` | Passenger requests to join a trip and creates a driver dashboard notification |
 | PUT | `/:id/approve` | Driver approves request (atomic transaction) |
 | PUT | `/:id/decline` | Driver declines request |
 | DELETE | `/:id` | Passenger cancels request |
@@ -147,7 +163,9 @@ These routes are mounted by the backend, but they currently return `501 Not Impl
 
 - **trips** — driverId, driverEmail, origin, destination, departureTime, seats, availableSeats, status, createdAt
 - **vehicles** — document ID is the driver UID; make, model, licensePlate
-- **rideRequests** — planned/optional request documents linked to trips; status values use pending, approved, declined
+- **rideRequests** — request documents linked to trips; status values use pending, approved, declined, cancelled
+- **notifications** — driver dashboard alerts for ride requests; unread notifications are shown on the driver dashboard
+- **pushTokens** — driver browser FCM tokens used by Cloud Functions for push notifications
 
 ## Team
 

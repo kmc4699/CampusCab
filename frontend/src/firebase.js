@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, isSupported as isMessagingSupported } from "firebase/messaging";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -26,6 +27,11 @@ const hasFirebaseConfig = Boolean(
 );
 
 const app = hasFirebaseConfig ? initializeApp(firebaseConfig) : null;
+const messagingPromise = app
+  ? isMessagingSupported()
+      .then((supported) => (supported ? getMessaging(app) : null))
+      .catch(() => null)
+  : Promise.resolve(null);
 
 if (app) {
   // Embedded browsers and localhost sessions can fail analytics startup.
@@ -41,6 +47,8 @@ if (app) {
 export const firebaseReady = hasFirebaseConfig;
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
+export const messaging = messagingPromise;
+export const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 export default app;
 
 if (auth) {

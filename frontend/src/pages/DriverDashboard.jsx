@@ -1,15 +1,46 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, query, runTransaction, where } from 'firebase/firestore';
-import { auth, db, firebaseReady } from '../firebase';
-import { FIRESTORE_COLLECTIONS, RIDE_REQUEST_STATUS, TRIP_STATUS } from '../firestoreModel';
+import { getToken } from 'firebase/messaging';
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { auth, db, firebaseReady, messaging, vapidKey } from '../firebase';
+import {
+  FIRESTORE_COLLECTIONS,
+  NOTIFICATION_STATUS,
+  RIDE_REQUEST_STATUS,
+  TRIP_STATUS,
+} from '../firestoreModel';
 import useIsDesktop from '../hooks/useIsDesktop';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
+
+async function getPushTokenDocId(userId, token) {
+  if (!crypto?.subtle) {
+    return `${userId}_${token.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  }
+
+  const encodedToken = new TextEncoder().encode(token);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encodedToken);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const tokenHash = hashArray.map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${userId}_${tokenHash}`;
+}
 
 function DriverDashboard() {
   const [trips, setTrips] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [message, setMessage] = useState('');
   const [busyRequestId, setBusyRequestId] = useState('');
+  const [pushStatus, setPushStatus] = useState('idle');
+  const [pushMessage, setPushMessage] = useState('');
   const isDesktop = useIsDesktop();
 
   useEffect(() => {
@@ -43,6 +74,16 @@ function DriverDashboard() {
           status: RIDE_REQUEST_STATUS.approved,
         },
       ]);
+      setNotifications([
+        {
+          id: 'demo-notification-1',
+          type: 'ride_request',
+          passengerName: 'Jamie Chen',
+          seatsRequested: 1,
+          status: NOTIFICATION_STATUS.unread,
+          message: 'Jamie Chen requested 1 seat.',
+        },
+      ]);
       return undefined;
     }
 
@@ -56,6 +97,12 @@ function DriverDashboard() {
     const requestsQuery = query(
       collection(db, FIRESTORE_COLLECTIONS.rideRequests),
       where('tripOwnerId', '==', user.uid),
+    );
+    const notificationsQuery = query(
+      collection(db, FIRESTORE_COLLECTIONS.notifications),
+      where('recipientId', '==', user.uid),
+      where('type', '==', 'ride_request'),
+      where('status', '==', NOTIFICATION_STATUS.unread),
     );
 
     const unsubscribeTrips = onSnapshot(tripsQuery, (snapshot) => {
@@ -71,10 +118,54 @@ function DriverDashboard() {
       setRequests(requestDocs);
     });
 
+    const unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
+      const notificationDocs = snapshot.docs.map((notificationDoc) => ({
+        id: notificationDoc.id,
+        ...notificationDoc.data(),
+      }));
+      setNotifications(notificationDocs);
+    });
+
     return () => {
       unsubscribeTrips();
       unsubscribeRequests();
+      unsubscribeNotifications();
     };
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseReady || !auth || !db) {
+      setPushStatus('unavailable');
+      setPushMessage('Push notifications need Firebase to be configured.');
+      return;
+    }
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setPushStatus('unavailable');
+      setPushMessage('This browser does not support push notifications.');
+      return;
+    }
+
+    if (!vapidKey) {
+      setPushStatus('unavailable');
+      setPushMessage('Missing VITE_FIREBASE_VAPID_KEY. Add the Firebase Web Push certificate key first.');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setPushStatus('denied');
+      setPushMessage('Browser notifications are blocked. Update browser permissions to enable them.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setPushStatus('idle');
+      setPushMessage('Push permission is allowed. Refresh this browser registration.');
+      return;
+    }
+
+    setPushStatus('idle');
+    setPushMessage('Enable browser alerts for new passenger ride requests.');
   }, []);
 
   const tripsById = useMemo(
@@ -98,6 +189,128 @@ function DriverDashboard() {
     () => requests.filter((request) => (request.status || '').toLowerCase() === RIDE_REQUEST_STATUS.approved),
     [requests],
   );
+
+  const unreadNotifications = useMemo(
+    () =>
+      notifications
+        .filter((notification) => (notification.status || '').toLowerCase() === NOTIFICATION_STATUS.unread)
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)),
+    [notifications],
+  );
+
+  const handleDismissNotification = async (notificationId) => {
+    if (!firebaseReady || !auth || !db) {
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, status: NOTIFICATION_STATUS.read }
+            : notification,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, FIRESTORE_COLLECTIONS.notifications, notificationId), {
+        status: NOTIFICATION_STATUS.read,
+        readAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setMessage(`Error: ${error.message}`);
+    }
+  };
+
+  const handleEnablePush = async () => {
+    if (!firebaseReady || !auth || !db) {
+      setPushStatus('unavailable');
+      setPushMessage('Push notifications need Firebase to be configured.');
+      return;
+    }
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setPushStatus('unavailable');
+      setPushMessage('This browser does not support push notifications.');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setPushStatus('denied');
+      setPushMessage('Browser notifications are blocked. Update browser permissions to enable them.');
+      return;
+    }
+
+    if (!vapidKey) {
+      setPushStatus('unavailable');
+      setPushMessage('Missing VITE_FIREBASE_VAPID_KEY. Add the Firebase Web Push certificate key first.');
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      setPushStatus('unavailable');
+      setPushMessage('Sign in as a driver before enabling push notifications.');
+      return;
+    }
+
+    setPushStatus('working');
+    setPushMessage('Requesting browser permission...');
+
+    try {
+      const permission =
+        Notification.permission === 'granted'
+          ? Notification.permission
+          : await Notification.requestPermission();
+
+      if (permission !== 'granted') {
+        setPushStatus(permission === 'denied' ? 'denied' : 'idle');
+        setPushMessage(
+          permission === 'denied'
+            ? 'Browser notifications are blocked. Update browser permissions to enable them.'
+            : 'Push notifications were not enabled.',
+        );
+        return;
+      }
+
+      const messagingInstance = await messaging;
+      if (!messagingInstance) {
+        setPushStatus('unavailable');
+        setPushMessage('Firebase Messaging is not supported in this browser.');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      const token = await getToken(messagingInstance, {
+        vapidKey,
+        serviceWorkerRegistration: registration,
+      });
+
+      if (!token) {
+        setPushStatus('unavailable');
+        setPushMessage('Firebase did not return a push token for this browser.');
+        return;
+      }
+
+      const tokenDocId = await getPushTokenDocId(user.uid, token);
+      await setDoc(
+        doc(db, FIRESTORE_COLLECTIONS.pushTokens, tokenDocId),
+        {
+          userId: user.uid,
+          token,
+          role: 'driver',
+          userAgent: navigator.userAgent,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      setPushStatus('ready');
+      setPushMessage('Push notifications are enabled for this browser.');
+    } catch (error) {
+      setPushStatus('unavailable');
+      setPushMessage(error.message || 'Push notifications could not be enabled.');
+    }
+  };
 
   const handleApprove = async (requestId) => {
     const request = requests.find((item) => item.id === requestId);
@@ -234,6 +447,14 @@ function DriverDashboard() {
   };
 
   const hasError = message.startsWith('Error');
+  const pushButtonLabel =
+    pushStatus === 'working'
+      ? 'Enabling...'
+      : pushStatus === 'ready'
+        ? 'Enabled'
+        : 'Notification' in window && Notification.permission === 'granted'
+          ? 'Refresh token'
+          : 'Enable push';
 
   return (
     <div style={{ padding: '22px' }}>
@@ -268,9 +489,98 @@ function DriverDashboard() {
             value={pendingRequests.length}
             tone={pendingRequests.length ? 'warning' : 'success'}
           />
+          <StatPill
+            label="Alerts"
+            value={unreadNotifications.length}
+            tone={unreadNotifications.length ? 'warning' : 'muted'}
+          />
           <StatPill label="Approved" value={approvedRequests.length} tone="info" />
           <StatPill label="Trips" value={trips.length} tone="muted" />
         </div>
+      </div>
+
+      {unreadNotifications.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gap: '8px',
+            marginTop: '14px',
+            marginBottom: '4px',
+          }}
+        >
+          {unreadNotifications.map((notification) => (
+            <div
+              key={notification.id}
+              role="status"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                padding: '12px 14px',
+                borderRadius: radius.md,
+                backgroundColor: colors.warningSoft,
+                border: '1px solid rgba(217, 119, 6, 0.24)',
+                color: colors.warning,
+                fontWeight: 700,
+              }}
+            >
+              <span>
+                {notification.message ||
+                  `${notification.passengerName || 'A passenger'} requested ${notification.seatsRequested || 1} seat(s).`}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleDismissNotification(notification.id)}
+                style={{
+                  ...buttons.ghost,
+                  padding: '7px 10px',
+                  minHeight: 'auto',
+                  color: colors.warning,
+                  borderColor: 'rgba(217, 119, 6, 0.28)',
+                  flexShrink: 0,
+                }}
+              >
+                Mark read
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        style={{
+          marginTop: '14px',
+          padding: '14px',
+          borderRadius: radius.md,
+          border: `1px solid ${colors.border}`,
+          backgroundColor: colors.surfaceMuted,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ textAlign: 'left', minWidth: '220px', flex: 1 }}>
+          <div style={{ ...typography.h3, marginBottom: '3px' }}>Browser push alerts</div>
+          <div style={{ ...typography.small }}>
+            {pushMessage || 'Enable browser alerts for new passenger ride requests.'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleEnablePush}
+          disabled={pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied'}
+          style={{
+            ...buttons.ghost,
+            backgroundColor: pushStatus === 'ready' ? colors.successSoft : 'transparent',
+            color: pushStatus === 'ready' ? colors.success : colors.text,
+            opacity: pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied' ? 0.65 : 1,
+          }}
+        >
+          {pushButtonLabel}
+        </button>
       </div>
 
       {message && (
