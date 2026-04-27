@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, firebaseReady } from '../firebase';
 import { FIRESTORE_COLLECTIONS, TRIP_STATUS } from '../firestoreModel';
 
 function isSameDepartureDate(departureTime, selectedDate) {
@@ -34,8 +34,10 @@ const SearchTrips = () => {
     setLoading(true);
 
     try {
-      if (!db) {
-        throw new Error("Firebase database is not initialized.");
+      if (!firebaseReady || !db) {
+        setTrips([]);
+        setError('Demo mode: Firebase is not configured, so hosted trip search is unavailable.');
+        return;
       }
 
       // Query trips by destination and active status.
