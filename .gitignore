@@ -10,12 +10,34 @@ build/
 .env
 .env.local
 .env.*.local
+*.local
 backend/serviceAccountKey.json
 backend/*service-account*.json
 backend/*firebase-adminsdk*.json
+**/serviceAccountKey.json
+**/*service-account*.json
+**/*firebase-adminsdk*.json
+
+# Firebase local output
+.firebase/
+.runtimeconfig.json
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+storage-debug.log
+database-debug.log
 
 # Vite cache
 .vite/
+
+# Test and tool caches
+coverage/
+.nyc_output/
+.eslintcache
+*.tsbuildinfo
+.cache/
+.parcel-cache/
+.turbo/
 
 # Logs
 logs/
@@ -41,13 +63,12 @@ lerna-debug.log*
 Thumbs.db
 
 # Local Vite files
-*.local
 
 # Claude Code
 # Added by Luka - Claude was added to remove duplicate Trello cards using Trello MCP
 .claude.json
+.claude/
 trello_borad.json
-.gitignore
-.gitignore
+trello_board.json
 backend/package-lock.json
 backend/functions/package-lock.json
