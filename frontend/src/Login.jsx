@@ -1,21 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { auth, firebaseReady } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import useIsDesktop from './hooks/useIsDesktop';
 import { buttons, colors, inputs, radius, shadows, typography } from './theme';
-
-function useIsDesktop(breakpoint = 860) {
-  const query = `(min-width: ${breakpoint}px)`;
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia(query).matches : false,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const handler = (e) => setIsDesktop(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [query]);
-  return isDesktop;
-}
 
 function Login({ onLoginSuccess }) {
   const [mode, setMode] = useState('home');
