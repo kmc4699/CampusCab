@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function SearchFeed({ destinationCampus, date, timeOfDay }) {
+export default function SearchFeed() {
   // TODO: SearchFeed needs state/props for destination campus, date, and time-of-day filters (e.g., "Morning").
   
   return (
