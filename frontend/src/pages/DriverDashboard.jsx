@@ -16,6 +16,8 @@ function DriverDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [message, setMessage] = useState('');
   const [busyRequestId, setBusyRequestId] = useState('');
+  const [pushStatus, setPushStatus] = useState('idle');
+  const [pushMessage, setPushMessage] = useState('');
   const isDesktop = useIsDesktop();
 
   useEffect(() => {
@@ -158,6 +160,35 @@ function DriverDashboard() {
     } catch (error) {
       setMessage(`Error: ${error.message}`);
     }
+  };
+
+  const handleEnablePush = () => {
+    if (!firebaseReady || !auth || !db) {
+      setPushStatus('unavailable');
+      setPushMessage('Push notifications need Firebase to be configured.');
+      return;
+    }
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setPushStatus('unavailable');
+      setPushMessage('This browser does not support push notifications.');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setPushStatus('denied');
+      setPushMessage('Browser notifications are blocked. Update browser permissions to enable them.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setPushStatus('ready');
+      setPushMessage('Push notifications are allowed for this browser.');
+      return;
+    }
+
+    setPushStatus('idle');
+    setPushMessage('Push notifications are ready to be enabled.');
   };
 
   const handleApprove = async (requestId) => {
@@ -387,6 +418,41 @@ function DriverDashboard() {
           ))}
         </div>
       )}
+
+      <div
+        style={{
+          marginTop: '14px',
+          padding: '14px',
+          borderRadius: radius.md,
+          border: `1px solid ${colors.border}`,
+          backgroundColor: colors.surfaceMuted,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ textAlign: 'left', minWidth: '220px', flex: 1 }}>
+          <div style={{ ...typography.h3, marginBottom: '3px' }}>Browser push alerts</div>
+          <div style={{ ...typography.small }}>
+            {pushMessage || 'Enable browser alerts for new passenger ride requests.'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleEnablePush}
+          disabled={pushStatus === 'unavailable' || pushStatus === 'denied'}
+          style={{
+            ...buttons.ghost,
+            backgroundColor: pushStatus === 'ready' ? colors.successSoft : 'transparent',
+            color: pushStatus === 'ready' ? colors.success : colors.text,
+            opacity: pushStatus === 'unavailable' || pushStatus === 'denied' ? 0.65 : 1,
+          }}
+        >
+          {pushStatus === 'ready' ? 'Enabled' : 'Enable push'}
+        </button>
+      </div>
 
       {message && (
         <p
