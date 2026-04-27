@@ -5,6 +5,7 @@ import { auth, db } from './firebase';
 import Login from './Login';
 import VehicleProfile from './VehicleProfile';
 import CreateTrip from './CreateTrip';
+import { FIRESTORE_COLLECTIONS } from './firestoreModel';
 import DriverDashboard from './pages/DriverDashboard';
 import PassengerDashboard from './pages/PassengerDashboard';
 import Stepper from './components/Stepper';
@@ -480,7 +481,7 @@ function DriverExperience() {
 
     (async () => {
       try {
-        const snap = await getDoc(doc(db, 'vehicles', user.uid));
+        const snap = await getDoc(doc(db, FIRESTORE_COLLECTIONS.vehicles, user.uid));
         if (snap.exists()) {
           setVehicle(snap.data());
           setOnboardingComplete(true);
