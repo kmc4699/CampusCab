@@ -12,7 +12,6 @@ import {
 } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase';
 import { FIRESTORE_COLLECTIONS, NOTIFICATION_STATUS, RIDE_REQUEST_STATUS } from '../firestoreModel';
-import { registerBrowserPushToken } from '../utils/pushNotifications';
 import SearchTrips from './SearchTrips';
 
 function formatDeparture(departureTime) {
@@ -31,8 +30,6 @@ function PassengerDashboard() {
   const [message, setMessage] = useState('');
   const [rideToCancel, setRideToCancel] = useState(null);
   const [cancellingRideId, setCancellingRideId] = useState('');
-  const [pushStatus, setPushStatus] = useState('idle');
-  const [pushMessage, setPushMessage] = useState('');
 
   useEffect(() => {
     if (!firebaseReady || !auth || !db) {
@@ -109,90 +106,6 @@ function PassengerDashboard() {
       setNotifications(notificationDocs);
     });
   }, []);
-
-  useEffect(() => {
-    if (!firebaseReady || !auth || !db) {
-      setPushStatus('unavailable');
-      setPushMessage('Push notifications need Firebase to be configured.');
-      return;
-    }
-
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      setPushStatus('unavailable');
-      setPushMessage('This browser does not support push notifications.');
-      return;
-    }
-
-    if (Notification.permission === 'denied') {
-      setPushStatus('denied');
-      setPushMessage('Browser notifications are blocked. Update browser permissions to enable them.');
-      return;
-    }
-
-    if (Notification.permission === 'granted') {
-      setPushStatus('idle');
-      setPushMessage('Push permission is allowed. Refresh this browser registration.');
-      return;
-    }
-
-    setPushStatus('idle');
-    setPushMessage('Enable browser alerts for trip cancellations.');
-  }, []);
-
-  const handleEnablePush = async () => {
-    if (!firebaseReady || !auth || !db) {
-      setPushStatus('unavailable');
-      setPushMessage('Push notifications need Firebase to be configured.');
-      return;
-    }
-
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      setPushStatus('unavailable');
-      setPushMessage('This browser does not support push notifications.');
-      return;
-    }
-
-    if (Notification.permission === 'denied') {
-      setPushStatus('denied');
-      setPushMessage('Browser notifications are blocked. Update browser permissions to enable them.');
-      return;
-    }
-
-    const user = auth.currentUser;
-    if (!user) {
-      setPushStatus('unavailable');
-      setPushMessage('Sign in as a passenger before enabling push notifications.');
-      return;
-    }
-
-    setPushStatus('working');
-    setPushMessage('Requesting browser permission...');
-
-    try {
-      const permission =
-        Notification.permission === 'granted'
-          ? Notification.permission
-          : await Notification.requestPermission();
-
-      if (permission !== 'granted') {
-        setPushStatus(permission === 'denied' ? 'denied' : 'idle');
-        setPushMessage(
-          permission === 'denied'
-            ? 'Browser notifications are blocked. Update browser permissions to enable them.'
-            : 'Push notifications were not enabled.',
-        );
-        return;
-      }
-
-      await registerBrowserPushToken(user, 'passenger');
-
-      setPushStatus('ready');
-      setPushMessage('Trip cancellation push alerts are enabled for this browser.');
-    } catch (error) {
-      setPushStatus('unavailable');
-      setPushMessage(error.message || 'Push notifications could not be enabled.');
-    }
-  };
 
   const handleDismissNotification = async (notificationId) => {
     if (!firebaseReady || !db) {
@@ -328,54 +241,6 @@ function PassengerDashboard() {
           {message}
         </p>
       )}
-
-      <section
-        style={{
-          marginBottom: '24px',
-          padding: '14px 16px',
-          border: '1px solid #ddd',
-          borderRadius: '8px',
-          backgroundColor: '#f9fafb',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ minWidth: '220px', flex: 1 }}>
-          <h2 style={{ margin: '0 0 4px', fontSize: '1rem' }}>Trip cancellation alerts</h2>
-          <p style={{ margin: 0, color: '#555', fontSize: '0.9rem' }}>
-            {pushMessage || 'Enable browser alerts if a driver cancels one of your approved rides.'}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleEnablePush}
-          disabled={pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied'}
-          style={{
-            border: '1px solid #0f766e',
-            borderRadius: '8px',
-            backgroundColor: pushStatus === 'ready' ? '#ecfdf5' : '#fff',
-            color: pushStatus === 'ready' ? '#047857' : '#0f766e',
-            cursor:
-              pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied'
-                ? 'not-allowed'
-                : 'pointer',
-            fontWeight: 700,
-            padding: '9px 12px',
-            opacity: pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied' ? 0.65 : 1,
-          }}
-        >
-          {pushStatus === 'working'
-            ? 'Enabling...'
-            : pushStatus === 'ready'
-              ? 'Enabled'
-              : 'Notification' in window && Notification.permission === 'granted'
-                ? 'Refresh token'
-                : 'Enable push'}
-        </button>
-      </section>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
         {/* Left Column: Search & Action Area */}
