@@ -141,10 +141,9 @@ For backend Firebase Admin access, set `GOOGLE_APPLICATION_CREDENTIALS` or the s
 
 ## Database Collections
 
-- **users** — userId, fullName, email, role, universityId, studentVerified, averageRating, accountStatus
-- **vehicles** — vehicleId, driverId, plateNumber, make, model, colour, seatCapacity, verified
-- **tripListings** — tripId, driverId, originArea, destinationCampus, departureDate, departureTime, seats, pricePerSeat, tripStatus, h3Index
-- **rideRequests** — requestId, tripId, passengerId, seatsRequested, requestStatus, pickupLocation
+- **trips** — driverId, driverEmail, origin, destination, departureTime, seats, availableSeats, status, createdAt
+- **vehicles** — document ID is the driver UID; make, model, licensePlate
+- **rideRequests** — planned/optional request documents linked to trips; status values use pending, approved, declined
 
 ## Team
 
