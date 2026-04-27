@@ -88,7 +88,7 @@ npm run dev
 ```
 
 ### 3. Optional backend setup
-
+<!-- Dont use this anymore - we are only using firebase -->
 The frontend uses Firebase directly for the active app flow. The Express backend is kept for planned API work and can be run separately when needed.
 
 ```bash
