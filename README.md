@@ -51,7 +51,7 @@ CampusCab/
 
 ### Prerequisites
 
-- Node.js v24.14.0
+- Node.js 22+ or 24+
 - A Firebase project with Firestore and Authentication enabled
 
 ### 1. Clone the repository
@@ -61,29 +61,34 @@ git clone <repo-url>
 cd CampusCab
 ```
 
-### 2. Backend setup
+### 2. Frontend setup
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+```
+
+Edit `frontend/.env` with the Firebase web app values from Firebase Console.
+
+```bash
+npm run dev
+# App runs on http://localhost:5173
+```
+
+### 3. Optional backend setup
+
+The frontend uses Firebase directly for the active app flow. The Express backend is kept for planned API work and can be run separately when needed.
 
 ```bash
 cd backend
 npm install
 cp .env.example .env
-```
-
-Edit `.env` with your Firebase service account credentials (download from Firebase Console → Project Settings → Service Accounts → Generate new private key).
-
-```bash
 node server.js
 # Server runs on http://localhost:3000
 ```
 
-### 3. Frontend setup
-
-```bash
-cd frontend
-npm install
-npm run dev
-# App runs on http://localhost:5173
-```
+For backend Firebase Admin access, set `GOOGLE_APPLICATION_CREDENTIALS` or the service-account fields in `backend/.env`.
 
 ## API Routes
 
