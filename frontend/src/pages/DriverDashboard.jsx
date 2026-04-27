@@ -66,7 +66,10 @@ function DriverDashboard() {
       collection(db, FIRESTORE_COLLECTIONS.trips),
       where('driverId', '==', user.uid),
     );
-    const requestsQuery = query(collection(db, 'rideRequests'), where('tripOwnerId', '==', user.uid));
+    const requestsQuery = query(
+      collection(db, FIRESTORE_COLLECTIONS.rideRequests),
+      where('tripOwnerId', '==', user.uid),
+    );
 
     const unsubscribeTrips = onSnapshot(tripsQuery, (snapshot) => {
       const tripDocs = snapshot.docs.map((tripDoc) => ({ id: tripDoc.id, ...tripDoc.data() }));
@@ -145,7 +148,7 @@ function DriverDashboard() {
 
     try {
       await runTransaction(db, async (transaction) => {
-        const requestRef = doc(db, 'rideRequests', requestId);
+        const requestRef = doc(db, FIRESTORE_COLLECTIONS.rideRequests, requestId);
         const tripRef = doc(db, FIRESTORE_COLLECTIONS.trips, request.tripId);
 
         const [requestSnap, tripSnap] = await Promise.all([
@@ -216,7 +219,7 @@ function DriverDashboard() {
 
     try {
       await runTransaction(db, async (transaction) => {
-        const requestRef = doc(db, 'rideRequests', requestId);
+        const requestRef = doc(db, FIRESTORE_COLLECTIONS.rideRequests, requestId);
         const requestSnap = await transaction.get(requestRef);
         if (!requestSnap.exists()) throw new Error('Request not found.');
 
