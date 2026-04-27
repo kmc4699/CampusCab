@@ -9,6 +9,7 @@ export const FIRESTORE_COLLECTIONS = {
 export const TRIP_STATUS = {
   active: 'active',
   full: 'full',
+  cancelled: 'cancelled',
 };
 
 export const RIDE_REQUEST_STATUS = {

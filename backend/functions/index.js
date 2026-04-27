@@ -15,6 +15,11 @@ const RIDE_REQUEST_STATUS = {
 const TRIP_STATUS = {
   active: 'active',
   full: 'full',
+  cancelled: 'cancelled',
+};
+
+const NOTIFICATION_STATUS = {
+  unread: 'unread',
 };
 
 const getPositiveInteger = (value, fallback = 1) => {
@@ -25,6 +30,27 @@ const getPositiveInteger = (value, fallback = 1) => {
 const getNonNegativeInteger = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const deleteStaleTokens = async (response, tokenDocs, logContext) => {
+  const staleTokenDeletes = response.responses
+    .map((result, index) => {
+      const errorCode = result.error?.code;
+      const isStaleToken =
+        errorCode === 'messaging/registration-token-not-registered' ||
+        errorCode === 'messaging/invalid-registration-token';
+
+      return isStaleToken ? tokenDocs[index].ref.delete() : null;
+    })
+    .filter(Boolean);
+
+  if (staleTokenDeletes.length > 0) {
+    await Promise.all(staleTokenDeletes);
+    functions.logger.info('Deleted stale push tokens.', {
+      ...logContext,
+      deletedCount: staleTokenDeletes.length,
+    });
+  }
 };
 
 exports.onRideRequestCreated = functions.firestore
@@ -92,25 +118,128 @@ exports.onRideRequestCreated = functions.firestore
       failureCount: response.failureCount,
     });
 
-    const staleTokenDeletes = response.responses
-      .map((result, index) => {
-        const errorCode = result.error?.code;
-        const isStaleToken =
-          errorCode === 'messaging/registration-token-not-registered' ||
-          errorCode === 'messaging/invalid-registration-token';
+    await deleteStaleTokens(response, tokenDocs, {
+      driverId,
+      requestId: context.params.requestId,
+    });
 
-        return isStaleToken ? tokenDocs[index].ref.delete() : null;
-      })
-      .filter(Boolean);
+    return null;
+  });
 
-    if (staleTokenDeletes.length > 0) {
-      await Promise.all(staleTokenDeletes);
-      functions.logger.info('Deleted stale driver push tokens.', {
-        driverId,
-        requestId: context.params.requestId,
-        deletedCount: staleTokenDeletes.length,
-      });
+exports.onTripCancelled = functions.firestore
+  .document('trips/{tripId}')
+  .onUpdate(async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+    const previousStatus = (beforeData.status || '').toLowerCase();
+    const nextStatus = (afterData.status || '').toLowerCase();
+
+    if (
+      previousStatus === TRIP_STATUS.cancelled ||
+      nextStatus !== TRIP_STATUS.cancelled
+    ) {
+      return null;
     }
+
+    const tripId = context.params.tripId;
+    const approvedRequestsSnapshot = await db
+      .collection('rideRequests')
+      .where('tripId', '==', tripId)
+      .where('status', '==', RIDE_REQUEST_STATUS.approved)
+      .get();
+
+    if (approvedRequestsSnapshot.empty) {
+      functions.logger.info('Cancelled trip had no approved passengers.', { tripId });
+      return null;
+    }
+
+    const passengerIds = new Set();
+    const batch = db.batch();
+    const origin = afterData.origin || 'your pickup';
+    const destination = afterData.destination || 'campus';
+    const notificationMessage = `Your ride from ${origin} to ${destination} was cancelled by the driver.`;
+
+    approvedRequestsSnapshot.docs.forEach((requestDoc) => {
+      const requestData = requestDoc.data();
+      const passengerId = requestData.passengerId;
+
+      batch.update(requestDoc.ref, {
+        status: RIDE_REQUEST_STATUS.cancelled,
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancellationSource: 'trip_cancelled',
+        cancelledTripId: tripId,
+      });
+
+      if (!passengerId) return;
+
+      passengerIds.add(passengerId);
+      batch.set(db.collection('notifications').doc(), {
+        type: 'trip_cancelled',
+        recipientId: passengerId,
+        tripId,
+        requestId: requestDoc.id,
+        driverId: afterData.driverId || '',
+        passengerId,
+        status: NOTIFICATION_STATUS.unread,
+        message: notificationMessage,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    await batch.commit();
+
+    const tokenDocsByPassenger = await Promise.all(
+      Array.from(passengerIds).map(async (passengerId) => {
+        const tokensSnapshot = await db
+          .collection('pushTokens')
+          .where('userId', '==', passengerId)
+          .where('role', '==', 'passenger')
+          .get();
+
+        return tokensSnapshot.docs.map((tokenDoc) => ({
+          ref: tokenDoc.ref,
+          token: tokenDoc.data().token,
+          passengerId,
+        }));
+      }),
+    );
+    const tokenDocs = tokenDocsByPassenger.flat().filter((tokenDoc) => Boolean(tokenDoc.token));
+    const tokens = tokenDocs.map((tokenDoc) => tokenDoc.token);
+
+    if (tokens.length === 0) {
+      functions.logger.info('No passenger push tokens found for cancelled trip.', {
+        tripId,
+        passengerCount: passengerIds.size,
+      });
+      return null;
+    }
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: 'Trip cancelled',
+        body: notificationMessage,
+      },
+      data: {
+        type: 'trip_cancelled',
+        tripId,
+        url: '/',
+        body: notificationMessage,
+      },
+      webpush: {
+        fcmOptions: {
+          link: '/',
+        },
+      },
+    });
+
+    functions.logger.info('Trip cancellation push notifications sent.', {
+      tripId,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+    });
+
+    await deleteStaleTokens(response, tokenDocs, { tripId });
 
     return null;
   });
@@ -125,7 +254,8 @@ exports.onApprovedRideRequestCancelled = functions.firestore
 
     if (
       previousStatus !== RIDE_REQUEST_STATUS.approved ||
-      nextStatus !== RIDE_REQUEST_STATUS.cancelled
+      nextStatus !== RIDE_REQUEST_STATUS.cancelled ||
+      afterData.cancellationSource === 'trip_cancelled'
     ) {
       return null;
     }
