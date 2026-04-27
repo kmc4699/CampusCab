@@ -34,10 +34,10 @@ CampusCab/
 │   ├── config/
 │   │   └── firebaseConfig.js     # Firebase Admin SDK init
 │   ├── controllers/
-│   │   ├── authController.js     # Registration, login, logout
-│   │   ├── tripController.js     # Create, search, view, cancel trips
-│   │   ├── bookingController.js  # Request, approve, decline bookings
-│   │   └── messageController.js  # Trip messaging
+│   │   ├── authController.js     # Planned auth API handlers
+│   │   ├── tripController.js     # Planned trip API handlers
+│   │   ├── bookingController.js  # Planned booking API handlers
+│   │   └── messageController.js  # Planned messaging API handlers
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── tripRoutes.js
@@ -48,11 +48,12 @@ CampusCab/
 └── frontend/
     └── src/
         ├── pages/
-        │   ├── AuthUI.jsx
+        │   ├── SearchTrips.jsx
         │   ├── PassengerDashboard.jsx
         │   └── DriverDashboard.jsx
-        ├── services/
-        │   └── api.js            # Fetch wrappers for all API routes
+        ├── hooks/
+        │   └── useIsDesktop.js
+        ├── firestoreModel.js
         ├── App.jsx
         └── main.jsx
 ```
@@ -133,13 +134,14 @@ These routes are mounted by the backend, but they currently return `501 Not Impl
 | POST | `/` | Send a message |
 | GET | `/:tripId` | Get messages for a trip |
 
-## Frontend Routes
+## Frontend Screens
 
-| Path | Component |
+| Screen | Component |
 |---|---|
-| `/` | AuthUI |
-| `/passenger` | PassengerDashboard |
-| `/driver` | DriverDashboard |
+| Login/register | Login |
+| Driver tab | DriverDashboard, VehicleProfile, CreateTrip |
+| Passenger tab | PassengerDashboard, SearchTrips |
+| Admin tab | Placeholder |
 
 ## Database Collections
 
