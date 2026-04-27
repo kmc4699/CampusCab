@@ -3,3 +3,14 @@ export const FIRESTORE_COLLECTIONS = {
   vehicles: 'vehicles',
   rideRequests: 'rideRequests',
 };
+
+export const TRIP_STATUS = {
+  active: 'active',
+  full: 'full',
+};
+
+export const RIDE_REQUEST_STATUS = {
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+};
