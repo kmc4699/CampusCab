@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import { FIRESTORE_COLLECTIONS, TRIP_STATUS } from '../firestoreModel';
 
 const SearchTrips = () => {
   const [campus, setCampus] = useState('');
@@ -23,11 +24,11 @@ const SearchTrips = () => {
 
       // Query trips by destination and active status.
       // Filtering by exact date and availableSeats > 0 is done locally to avoid complex Firestore composite index requirements.
-      const tripsRef = collection(db, 'trips');
+      const tripsRef = collection(db, FIRESTORE_COLLECTIONS.trips);
       const q = query(
         tripsRef,
         where('destination', '==', campus),
-        where('status', '==', 'active')
+        where('status', '==', TRIP_STATUS.active)
       );
 
       const querySnapshot = await getDocs(q);
