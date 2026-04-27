@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db, firebaseReady, auth } from '../firebase';
-import { FIRESTORE_COLLECTIONS, TRIP_STATUS, RIDE_REQUEST_STATUS } from '../firestoreModel';
+import {
+  FIRESTORE_COLLECTIONS,
+  NOTIFICATION_STATUS,
+  TRIP_STATUS,
+  RIDE_REQUEST_STATUS,
+} from '../firestoreModel';
 
 function isSameDepartureDate(departureTime, selectedDate) {
   return Boolean(departureTime && selectedDate && departureTime.startsWith(selectedDate));
@@ -87,17 +92,39 @@ const SearchTrips = () => {
 
     try {
       const requestsRef = collection(db, FIRESTORE_COLLECTIONS.rideRequests);
-      await addDoc(requestsRef, {
+      const requestRef = doc(requestsRef);
+      const notificationRef = doc(collection(db, FIRESTORE_COLLECTIONS.notifications));
+      const passengerName = user.displayName || 'Passenger';
+      const passengerEmail = user.email || '';
+      const tripOwnerId = trip.driverId || 'unknown_driver';
+      const batch = writeBatch(db);
+
+      batch.set(requestRef, {
         tripId: trip.id,
-        tripOwnerId: trip.driverId || 'unknown_driver',
+        tripOwnerId,
         passengerId: user.uid,
-        passengerName: user.displayName || 'Passenger',
-        passengerEmail: user.email || '',
+        passengerName,
+        passengerEmail,
         status: RIDE_REQUEST_STATUS.pending,
         createdAt: serverTimestamp(),
         note: `Requested ${requestedSeats} seat(s)`,
         seatsRequested: requestedSeats
       });
+      batch.set(notificationRef, {
+        type: 'ride_request',
+        recipientId: tripOwnerId,
+        tripId: trip.id,
+        requestId: requestRef.id,
+        passengerId: user.uid,
+        passengerName,
+        passengerEmail,
+        seatsRequested: requestedSeats,
+        status: NOTIFICATION_STATUS.unread,
+        message: `${passengerName} requested ${requestedSeats} seat(s).`,
+        createdAt: serverTimestamp(),
+      });
+
+      await batch.commit();
 
       alert('Booking request sent successfully!');
       setSelectedTripId(null);

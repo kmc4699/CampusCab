@@ -1,13 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, query, runTransaction, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, runTransaction, updateDoc, where } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase';
-import { FIRESTORE_COLLECTIONS, RIDE_REQUEST_STATUS, TRIP_STATUS } from '../firestoreModel';
+import {
+  FIRESTORE_COLLECTIONS,
+  NOTIFICATION_STATUS,
+  RIDE_REQUEST_STATUS,
+  TRIP_STATUS,
+} from '../firestoreModel';
 import useIsDesktop from '../hooks/useIsDesktop';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
 
 function DriverDashboard() {
   const [trips, setTrips] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [message, setMessage] = useState('');
   const [busyRequestId, setBusyRequestId] = useState('');
   const isDesktop = useIsDesktop();
@@ -43,6 +49,16 @@ function DriverDashboard() {
           status: RIDE_REQUEST_STATUS.approved,
         },
       ]);
+      setNotifications([
+        {
+          id: 'demo-notification-1',
+          type: 'ride_request',
+          passengerName: 'Jamie Chen',
+          seatsRequested: 1,
+          status: NOTIFICATION_STATUS.unread,
+          message: 'Jamie Chen requested 1 seat.',
+        },
+      ]);
       return undefined;
     }
 
@@ -56,6 +72,12 @@ function DriverDashboard() {
     const requestsQuery = query(
       collection(db, FIRESTORE_COLLECTIONS.rideRequests),
       where('tripOwnerId', '==', user.uid),
+    );
+    const notificationsQuery = query(
+      collection(db, FIRESTORE_COLLECTIONS.notifications),
+      where('recipientId', '==', user.uid),
+      where('type', '==', 'ride_request'),
+      where('status', '==', NOTIFICATION_STATUS.unread),
     );
 
     const unsubscribeTrips = onSnapshot(tripsQuery, (snapshot) => {
@@ -71,9 +93,18 @@ function DriverDashboard() {
       setRequests(requestDocs);
     });
 
+    const unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
+      const notificationDocs = snapshot.docs.map((notificationDoc) => ({
+        id: notificationDoc.id,
+        ...notificationDoc.data(),
+      }));
+      setNotifications(notificationDocs);
+    });
+
     return () => {
       unsubscribeTrips();
       unsubscribeRequests();
+      unsubscribeNotifications();
     };
   }, []);
 
@@ -98,6 +129,36 @@ function DriverDashboard() {
     () => requests.filter((request) => (request.status || '').toLowerCase() === RIDE_REQUEST_STATUS.approved),
     [requests],
   );
+
+  const unreadNotifications = useMemo(
+    () =>
+      notifications
+        .filter((notification) => (notification.status || '').toLowerCase() === NOTIFICATION_STATUS.unread)
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)),
+    [notifications],
+  );
+
+  const handleDismissNotification = async (notificationId) => {
+    if (!firebaseReady || !auth || !db) {
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, status: NOTIFICATION_STATUS.read }
+            : notification,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, FIRESTORE_COLLECTIONS.notifications, notificationId), {
+        status: NOTIFICATION_STATUS.read,
+        readAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setMessage(`Error: ${error.message}`);
+    }
+  };
 
   const handleApprove = async (requestId) => {
     const request = requests.find((item) => item.id === requestId);
@@ -268,10 +329,64 @@ function DriverDashboard() {
             value={pendingRequests.length}
             tone={pendingRequests.length ? 'warning' : 'success'}
           />
+          <StatPill
+            label="Alerts"
+            value={unreadNotifications.length}
+            tone={unreadNotifications.length ? 'warning' : 'muted'}
+          />
           <StatPill label="Approved" value={approvedRequests.length} tone="info" />
           <StatPill label="Trips" value={trips.length} tone="muted" />
         </div>
       </div>
+
+      {unreadNotifications.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gap: '8px',
+            marginTop: '14px',
+            marginBottom: '4px',
+          }}
+        >
+          {unreadNotifications.map((notification) => (
+            <div
+              key={notification.id}
+              role="status"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                padding: '12px 14px',
+                borderRadius: radius.md,
+                backgroundColor: colors.warningSoft,
+                border: '1px solid rgba(217, 119, 6, 0.24)',
+                color: colors.warning,
+                fontWeight: 700,
+              }}
+            >
+              <span>
+                {notification.message ||
+                  `${notification.passengerName || 'A passenger'} requested ${notification.seatsRequested || 1} seat(s).`}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleDismissNotification(notification.id)}
+                style={{
+                  ...buttons.ghost,
+                  padding: '7px 10px',
+                  minHeight: 'auto',
+                  color: colors.warning,
+                  borderColor: 'rgba(217, 119, 6, 0.28)',
+                  flexShrink: 0,
+                }}
+              >
+                Mark read
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {message && (
         <p
