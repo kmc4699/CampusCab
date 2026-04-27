@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, query, runTransaction, updateDoc, where } from 'firebase/firestore';
-import { auth, db, firebaseReady } from '../firebase';
+import { getToken } from 'firebase/messaging';
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { auth, db, firebaseReady, messaging, vapidKey } from '../firebase';
 import {
   FIRESTORE_COLLECTIONS,
   NOTIFICATION_STATUS,
@@ -9,6 +20,14 @@ import {
 } from '../firestoreModel';
 import useIsDesktop from '../hooks/useIsDesktop';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
+
+async function getPushTokenDocId(userId, token) {
+  const encodedToken = new TextEncoder().encode(token);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encodedToken);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const tokenHash = hashArray.map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${userId}_${tokenHash}`;
+}
 
 function DriverDashboard() {
   const [trips, setTrips] = useState([]);
@@ -162,7 +181,7 @@ function DriverDashboard() {
     }
   };
 
-  const handleEnablePush = () => {
+  const handleEnablePush = async () => {
     if (!firebaseReady || !auth || !db) {
       setPushStatus('unavailable');
       setPushMessage('Push notifications need Firebase to be configured.');
@@ -181,14 +200,77 @@ function DriverDashboard() {
       return;
     }
 
-    if (Notification.permission === 'granted') {
-      setPushStatus('ready');
-      setPushMessage('Push notifications are allowed for this browser.');
+    if (!vapidKey) {
+      setPushStatus('unavailable');
+      setPushMessage('Missing VITE_FIREBASE_VAPID_KEY. Add the Firebase Web Push certificate key first.');
       return;
     }
 
-    setPushStatus('idle');
-    setPushMessage('Push notifications are ready to be enabled.');
+    const user = auth.currentUser;
+    if (!user) {
+      setPushStatus('unavailable');
+      setPushMessage('Sign in as a driver before enabling push notifications.');
+      return;
+    }
+
+    setPushStatus('working');
+    setPushMessage('Requesting browser permission...');
+
+    try {
+      const permission =
+        Notification.permission === 'granted'
+          ? Notification.permission
+          : await Notification.requestPermission();
+
+      if (permission !== 'granted') {
+        setPushStatus(permission === 'denied' ? 'denied' : 'idle');
+        setPushMessage(
+          permission === 'denied'
+            ? 'Browser notifications are blocked. Update browser permissions to enable them.'
+            : 'Push notifications were not enabled.',
+        );
+        return;
+      }
+
+      const messagingInstance = await messaging;
+      if (!messagingInstance) {
+        setPushStatus('unavailable');
+        setPushMessage('Firebase Messaging is not supported in this browser.');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      const token = await getToken(messagingInstance, {
+        vapidKey,
+        serviceWorkerRegistration: registration,
+      });
+
+      if (!token) {
+        setPushStatus('unavailable');
+        setPushMessage('Firebase did not return a push token for this browser.');
+        return;
+      }
+
+      const tokenDocId = await getPushTokenDocId(user.uid, token);
+      await setDoc(
+        doc(db, FIRESTORE_COLLECTIONS.pushTokens, tokenDocId),
+        {
+          userId: user.uid,
+          token,
+          role: 'driver',
+          userAgent: navigator.userAgent,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      setPushStatus('ready');
+      setPushMessage('Push notifications are enabled for this browser.');
+    } catch (error) {
+      setPushStatus('unavailable');
+      setPushMessage(error.message || 'Push notifications could not be enabled.');
+    }
   };
 
   const handleApprove = async (requestId) => {
@@ -442,15 +524,15 @@ function DriverDashboard() {
         <button
           type="button"
           onClick={handleEnablePush}
-          disabled={pushStatus === 'unavailable' || pushStatus === 'denied'}
+          disabled={pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied'}
           style={{
             ...buttons.ghost,
             backgroundColor: pushStatus === 'ready' ? colors.successSoft : 'transparent',
             color: pushStatus === 'ready' ? colors.success : colors.text,
-            opacity: pushStatus === 'unavailable' || pushStatus === 'denied' ? 0.65 : 1,
+            opacity: pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied' ? 0.65 : 1,
           }}
         >
-          {pushStatus === 'ready' ? 'Enabled' : 'Enable push'}
+          {pushStatus === 'working' ? 'Enabling...' : pushStatus === 'ready' ? 'Enabled' : 'Enable push'}
         </button>
       </div>
 

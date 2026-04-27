@@ -3,6 +3,7 @@ export const FIRESTORE_COLLECTIONS = {
   vehicles: 'vehicles',
   rideRequests: 'rideRequests',
   notifications: 'notifications',
+  pushTokens: 'pushTokens',
 };
 
 export const TRIP_STATUS = {
