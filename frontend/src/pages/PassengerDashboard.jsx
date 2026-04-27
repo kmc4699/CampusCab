@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase';
 import { FIRESTORE_COLLECTIONS, RIDE_REQUEST_STATUS } from '../firestoreModel';
 import SearchTrips from './SearchTrips';
@@ -17,6 +17,8 @@ function PassengerDashboard() {
   const [pastRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [rideToCancel, setRideToCancel] = useState(null);
+  const [cancellingRideId, setCancellingRideId] = useState('');
 
   useEffect(() => {
     if (!firebaseReady || !auth || !db) {
@@ -59,7 +61,9 @@ function PassengerDashboard() {
             (a.trip?.departureTime || '').localeCompare(b.trip?.departureTime || ''),
           );
           setUpcomingRides(sortedRides);
-          setMessage('');
+          setMessage((currentMessage) =>
+            currentMessage === 'Your seat reservation was cancelled.' ? currentMessage : '',
+          );
         } catch (error) {
           setMessage(error.message || 'Unable to load upcoming rides.');
         } finally {
@@ -72,6 +76,40 @@ function PassengerDashboard() {
       },
     );
   }, []);
+
+  const handleCancelSeat = async () => {
+    if (!rideToCancel) return;
+
+    if (!firebaseReady || !auth || !db) {
+      setUpcomingRides((currentRides) => currentRides.filter((ride) => ride.id !== rideToCancel.id));
+      setRideToCancel(null);
+      setMessage('Your seat reservation was cancelled.');
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user || rideToCancel.passengerId !== user.uid) {
+      setMessage('Error: You can only cancel your own seat reservation.');
+      return;
+    }
+
+    setCancellingRideId(rideToCancel.id);
+    setMessage('');
+
+    try {
+      await updateDoc(doc(db, FIRESTORE_COLLECTIONS.rideRequests, rideToCancel.id), {
+        status: RIDE_REQUEST_STATUS.cancelled,
+        cancelledAt: serverTimestamp(),
+      });
+
+      setRideToCancel(null);
+      setMessage('Your seat reservation was cancelled.');
+    } catch (error) {
+      setMessage(`Error: ${error.message || 'Unable to cancel this seat reservation.'}`);
+    } finally {
+      setCancellingRideId('');
+    }
+  };
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
@@ -136,6 +174,23 @@ function PassengerDashboard() {
                         <div style={{ color: '#555', marginTop: '6px' }}>
                           {ride.seatsRequested || 1} seat(s) reserved
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setRideToCancel(ride)}
+                          disabled={cancellingRideId === ride.id}
+                          style={{
+                            marginTop: '12px',
+                            border: '1px solid #fecaca',
+                            borderRadius: '8px',
+                            backgroundColor: '#fff',
+                            color: '#b91c1c',
+                            cursor: cancellingRideId === ride.id ? 'wait' : 'pointer',
+                            fontWeight: 700,
+                            padding: '9px 12px',
+                          }}
+                        >
+                          {cancellingRideId === ride.id ? 'Cancelling...' : 'Cancel Seat'}
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -162,6 +217,77 @@ function PassengerDashboard() {
           )}
         </section>
       </div>
+
+      {rideToCancel && (
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            zIndex: 50,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-seat-title"
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              borderRadius: '8px',
+              backgroundColor: '#fff',
+              padding: '22px',
+              boxShadow: '0 20px 45px rgba(15, 23, 42, 0.24)',
+            }}
+          >
+            <h2 id="cancel-seat-title" style={{ marginTop: 0 }}>
+              Cancel seat reservation?
+            </h2>
+            <p style={{ color: '#555', lineHeight: 1.5 }}>
+              This will remove the upcoming ride from your dashboard and let the driver know you are no longer joining.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button
+                type="button"
+                onClick={() => setRideToCancel(null)}
+                disabled={Boolean(cancellingRideId)}
+                style={{
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  backgroundColor: '#fff',
+                  color: '#333',
+                  cursor: cancellingRideId ? 'wait' : 'pointer',
+                  fontWeight: 700,
+                  padding: '10px 14px',
+                }}
+              >
+                Keep Seat
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelSeat}
+                disabled={Boolean(cancellingRideId)}
+                style={{
+                  border: '1px solid #b91c1c',
+                  borderRadius: '8px',
+                  backgroundColor: '#b91c1c',
+                  color: '#fff',
+                  cursor: cancellingRideId ? 'wait' : 'pointer',
+                  fontWeight: 700,
+                  padding: '10px 14px',
+                }}
+              >
+                {cancellingRideId ? 'Cancelling...' : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
