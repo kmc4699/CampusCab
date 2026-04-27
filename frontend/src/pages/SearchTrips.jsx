@@ -27,6 +27,7 @@ const SearchTrips = () => {
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState(null);
+  const [seatsToBook, setSeatsToBook] = useState(1);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -68,7 +69,7 @@ const SearchTrips = () => {
     }
   };
 
-  const handleBookTrip = async (trip) => {
+  const handleBookTrip = async (trip, requestedSeats) => {
     if (!firebaseReady || !db || !auth) {
       alert('Demo mode: Booking request simulated.');
       setSelectedTripId(null);
@@ -94,7 +95,8 @@ const SearchTrips = () => {
         passengerEmail: user.email || '',
         status: RIDE_REQUEST_STATUS.pending,
         createdAt: serverTimestamp(),
-        note: 'Requested from Search UI'
+        note: `Requested ${requestedSeats} seat(s)`,
+        seatsRequested: requestedSeats
       });
 
       alert('Booking request sent successfully!');
@@ -166,7 +168,10 @@ const SearchTrips = () => {
               return (
                 <li 
                   key={trip.id} 
-                  onClick={() => setSelectedTripId(trip.id)}
+                  onClick={() => {
+                    setSelectedTripId(trip.id);
+                    setSeatsToBook(1);
+                  }}
                   style={{ 
                     border: isSelected ? '2px solid #007BFF' : '1px solid #ccc',
                     backgroundColor: isSelected ? '#e6f2ff' : 'transparent',
@@ -183,11 +188,24 @@ const SearchTrips = () => {
                   <p><strong>Available Seats:</strong> {trip.availableSeats}</p>
                   {isSelected && (
                     <div style={{ marginTop: '15px' }}>
+                      <div style={{ marginBottom: '10px' }}>
+                        <label htmlFor={`seats-${trip.id}`} style={{ marginRight: '10px' }}>Seats to book:</label>
+                        <input
+                          id={`seats-${trip.id}`}
+                          type="number"
+                          min="1"
+                          max={trip.availableSeats}
+                          value={seatsToBook}
+                          onChange={(e) => setSeatsToBook(Number(e.target.value))}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: '60px', padding: '5px' }}
+                        />
+                      </div>
                       <button 
                         style={{ padding: '8px 16px', backgroundColor: '#28a745', color: '#FFF', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleBookTrip(trip);
+                          handleBookTrip(trip, seatsToBook);
                         }}
                       >
                         Choose this Ride

@@ -114,14 +114,15 @@ function DriverDashboard() {
             : item,
         ),
       );
+      const requestedSeats = request.seatsRequested || 1;
       setTrips((currentTrips) =>
         currentTrips.map((trip) =>
           trip.id === request.tripId
             ? {
                 ...trip,
-                availableSeats: Math.max(0, (trip.availableSeats ?? trip.seats ?? 0) - 1),
+                availableSeats: Math.max(0, (trip.availableSeats ?? trip.seats ?? 0) - requestedSeats),
                 status:
-                  (trip.availableSeats ?? trip.seats ?? 0) - 1 <= 0 ? TRIP_STATUS.full : trip.status,
+                  (trip.availableSeats ?? trip.seats ?? 0) - requestedSeats <= 0 ? TRIP_STATUS.full : trip.status,
               }
             : trip,
         ),
@@ -158,11 +159,13 @@ function DriverDashboard() {
           ? tripData.availableSeats
           : tripData.seats;
 
-        if (!Number.isFinite(currentSeats) || currentSeats <= 0) {
-          throw new Error('No seats are available for this trip.');
+        const requestedSeats = latestRequest.seatsRequested || 1;
+
+        if (!Number.isFinite(currentSeats) || currentSeats < requestedSeats) {
+          throw new Error(`Not enough seats available. (Requested: ${requestedSeats}, Available: ${currentSeats})`);
         }
 
-        const nextSeats = currentSeats - 1;
+        const nextSeats = currentSeats - requestedSeats;
 
         transaction.update(requestRef, {
           status: RIDE_REQUEST_STATUS.approved,
@@ -405,6 +408,7 @@ function DriverDashboard() {
                     }
                   />
                   <InfoItem label="Seats left" value={remainingSeats ?? '—'} accent />
+                  <InfoItem label="Requested" value={request.seatsRequested || 1} />
                   {request.note && <InfoItem label="Note" value={request.note} wide />}
                 </div>
 
