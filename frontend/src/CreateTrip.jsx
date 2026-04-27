@@ -1,22 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { db, auth, firebaseReady } from './firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { buttons, colors, inputs, pills, radius, shadows, typography } from './theme';
 import { FIRESTORE_COLLECTIONS, TRIP_STATUS } from './firestoreModel';
-
-function useIsDesktop(breakpoint = 860) {
-  const query = `(min-width: ${breakpoint}px)`;
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia(query).matches : false,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const handler = (e) => setIsDesktop(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [query]);
-  return isDesktop;
-}
+import useIsDesktop from './hooks/useIsDesktop';
 
 function Field({ label, helper, children }) {
   return (
