@@ -38,6 +38,22 @@ const createDriverNotification = (transaction, requestRef, tripData, requestData
   });
 };
 
+const createPassengerDeclineNotification = (transaction, requestRef, requestData) => {
+  const notificationRef = db.collection('notifications').doc();
+
+  transaction.set(notificationRef, {
+    type: 'ride_request_declined',
+    recipientId: requestData.passengerId,
+    tripId: requestData.tripId,
+    requestId: requestRef.id,
+    driverId: requestData.tripOwnerId,
+    passengerId: requestData.passengerId,
+    status: 'unread',
+    message: 'Your ride request was declined by the driver.',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+};
+
 /**
  * POST /api/bookings
  * Creates a pending ride request and a dashboard notification for the trip's driver.
@@ -200,6 +216,7 @@ const declineRequest = async (req, res) => {
         status: RIDE_REQUEST_STATUS.declined,
         decidedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      createPassengerDeclineNotification(transaction, requestRef, requestData);
     });
 
     return res.json({ status: RIDE_REQUEST_STATUS.declined });
