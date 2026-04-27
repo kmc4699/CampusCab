@@ -3,6 +3,10 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { FIRESTORE_COLLECTIONS, TRIP_STATUS } from '../firestoreModel';
 
+function isSameDepartureDate(departureTime, selectedDate) {
+  return Boolean(departureTime && selectedDate && departureTime.startsWith(selectedDate));
+}
+
 const SearchTrips = () => {
   const [campus, setCampus] = useState('');
   const [date, setDate] = useState('');
@@ -38,11 +42,7 @@ const SearchTrips = () => {
         const data = doc.data();
         // date is from an input type="date", so it looks like "2026-04-27"
         // data.departureTime is a datetime-local string like "2026-04-27T10:00"
-        if (
-          data.departureTime && 
-          data.departureTime.startsWith(date) &&
-          data.availableSeats > 0
-        ) {
+        if (isSameDepartureDate(data.departureTime, date) && data.availableSeats > 0) {
           results.push({ id: doc.id, ...data });
         }
       });
