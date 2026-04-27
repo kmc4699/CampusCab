@@ -1,5 +1,10 @@
 const { db } = require('../config/firebaseConfig');
 
+const sendPlannedApiResponse = (res, action) =>
+  res.status(501).json({
+    error: `${action} is planned for the Express API but is not part of the active direct Firestore flow yet.`,
+  });
+
 /**
  * Firestore Schema — rideRequests collection
  * {
@@ -23,7 +28,7 @@ const { db } = require('../config/firebaseConfig');
  * 4. Return 201 Created with the new requestId
  */
 const requestToJoin = async (req, res) => {
-  // TODO: implement requestToJoin
+  return sendPlannedApiResponse(res, 'Booking requests');
 };
 
 /**
@@ -52,7 +57,7 @@ const requestToJoin = async (req, res) => {
  * });
  */
 const approveRequest = async (req, res) => {
-  // TODO: implement approveRequest using db.runTransaction
+  return sendPlannedApiResponse(res, 'Booking approval');
 };
 
 /**
@@ -61,7 +66,7 @@ const approveRequest = async (req, res) => {
  * 2. Update RideRequest.requestStatus to "Declined"
  */
 const declineRequest = async (req, res) => {
-  // TODO: implement declineRequest
+  return sendPlannedApiResponse(res, 'Booking decline');
 };
 
 /**
@@ -70,7 +75,7 @@ const declineRequest = async (req, res) => {
  * 2. Update RideRequest.requestStatus to "Cancelled" (or delete document)
  */
 const cancelRequest = async (req, res) => {
-  // TODO: implement cancelRequest
+  return sendPlannedApiResponse(res, 'Booking cancellation');
 };
 
 module.exports = { requestToJoin, approveRequest, declineRequest, cancelRequest };
