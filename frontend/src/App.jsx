@@ -11,6 +11,7 @@ import { FIRESTORE_COLLECTIONS } from './firestoreModel';
 import useIsDesktop from './hooks/useIsDesktop';
 import DriverDashboard from './pages/DriverDashboard';
 import PassengerDashboard from './pages/PassengerDashboard';
+import UserProfilePanel from './components/UserProfilePanel';
 import Stepper from './components/Stepper';
 import { buttons, colors, pills, radius, surfaces, typography } from './theme';
 
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'driver', label: 'Driver', icon: '🚗' },
   { id: 'passenger', label: 'Passenger', icon: '🎒' },
   { id: 'admin', label: 'Admin', icon: '🛡️' },
+  { id: 'profile', label: 'Profile', icon: '👤' },
 ];
 
 function BrandMark({ size = 40 }) {
@@ -630,6 +632,7 @@ function App() {
       {selectedRole === 'driver' && <DriverExperience />}
       {selectedRole === 'passenger' && <PassengerDashboard />}
       {selectedRole === 'admin' && <AdminDashboard onLogout={handleLogout} />}
+      {selectedRole === 'profile' && <UserProfilePanel />}
     </ResponsiveShell>
   );
 }
