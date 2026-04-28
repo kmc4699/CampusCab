@@ -1,7 +1,538 @@
+import React, { useState, useEffect } from 'react';
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+  writeBatch,
+} from 'firebase/firestore';
+import { auth, db, firebaseReady } from '../firebase';
+import { FIRESTORE_COLLECTIONS, NOTIFICATION_STATUS, RIDE_REQUEST_STATUS } from '../firestoreModel';
+import { registerBrowserPushToken } from '../utils/pushNotifications';
+import SearchTrips from './SearchTrips';
+
+function formatDeparture(departureTime) {
+  if (!departureTime) return 'Departure time unavailable';
+  return new Date(departureTime).toLocaleString([], {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
 function PassengerDashboard() {
+  const [upcomingRides, setUpcomingRides] = useState([]);
+  const [pastRides] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
+  const [rideToCancel, setRideToCancel] = useState(null);
+  const [cancellingRideId, setCancellingRideId] = useState('');
+  const [pushStatus, setPushStatus] = useState('idle');
+  const [pushMessage, setPushMessage] = useState('');
+
+  useEffect(() => {
+    if (!firebaseReady || !auth || !db) {
+      setUpcomingRides([]);
+      setLoading(false);
+      return undefined;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      setUpcomingRides([]);
+      setLoading(false);
+      return undefined;
+    }
+
+    const approvedRequestsQuery = query(
+      collection(db, FIRESTORE_COLLECTIONS.rideRequests),
+      where('passengerId', '==', user.uid),
+      where('status', '==', RIDE_REQUEST_STATUS.approved),
+    );
+
+    setLoading(true);
+
+    return onSnapshot(
+      approvedRequestsQuery,
+      async (snapshot) => {
+        try {
+          const rideDocs = await Promise.all(
+            snapshot.docs.map(async (requestDoc) => {
+              const request = { id: requestDoc.id, ...requestDoc.data() };
+              const tripSnap = request.tripId
+                ? await getDoc(doc(db, FIRESTORE_COLLECTIONS.trips, request.tripId))
+                : null;
+              const trip = tripSnap?.exists() ? { id: tripSnap.id, ...tripSnap.data() } : null;
+              return { ...request, trip };
+            }),
+          );
+
+          const sortedRides = rideDocs.sort((a, b) =>
+            (a.trip?.departureTime || '').localeCompare(b.trip?.departureTime || ''),
+          );
+          setUpcomingRides(sortedRides);
+          setMessage((currentMessage) =>
+            currentMessage === 'Your seat reservation was cancelled.' ? currentMessage : '',
+          );
+        } catch (error) {
+          setMessage(error.message || 'Unable to load upcoming rides.');
+        } finally {
+          setLoading(false);
+        }
+      },
+      (error) => {
+        setMessage(error.message || 'Unable to load upcoming rides.');
+        setLoading(false);
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseReady || !auth || !db || !auth.currentUser) {
+      return undefined;
+    }
+
+    const notificationsQuery = query(
+      collection(db, FIRESTORE_COLLECTIONS.notifications),
+      where('recipientId', '==', auth.currentUser.uid),
+      where('status', '==', NOTIFICATION_STATUS.unread),
+    );
+
+    return onSnapshot(notificationsQuery, (snapshot) => {
+      const notificationDocs = snapshot.docs
+        .map((notificationDoc) => ({ id: notificationDoc.id, ...notificationDoc.data() }))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setNotifications(notificationDocs);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseReady || !auth || !db) {
+      setPushStatus('unavailable');
+      setPushMessage('Push notifications need Firebase to be configured.');
+      return;
+    }
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setPushStatus('unavailable');
+      setPushMessage('This browser does not support push notifications.');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setPushStatus('denied');
+      setPushMessage('Browser notifications are blocked. Update browser permissions to enable them.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setPushStatus('idle');
+      setPushMessage('Push permission is allowed. Refresh this browser registration.');
+      return;
+    }
+
+    setPushStatus('idle');
+    setPushMessage('Enable browser alerts for trip cancellations.');
+  }, []);
+
+  const handleEnablePush = async () => {
+    if (!firebaseReady || !auth || !db) {
+      setPushStatus('unavailable');
+      setPushMessage('Push notifications need Firebase to be configured.');
+      return;
+    }
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setPushStatus('unavailable');
+      setPushMessage('This browser does not support push notifications.');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setPushStatus('denied');
+      setPushMessage('Browser notifications are blocked. Update browser permissions to enable them.');
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      setPushStatus('unavailable');
+      setPushMessage('Sign in as a passenger before enabling push notifications.');
+      return;
+    }
+
+    setPushStatus('working');
+    setPushMessage('Requesting browser permission...');
+
+    try {
+      const permission =
+        Notification.permission === 'granted'
+          ? Notification.permission
+          : await Notification.requestPermission();
+
+      if (permission !== 'granted') {
+        setPushStatus(permission === 'denied' ? 'denied' : 'idle');
+        setPushMessage(
+          permission === 'denied'
+            ? 'Browser notifications are blocked. Update browser permissions to enable them.'
+            : 'Push notifications were not enabled.',
+        );
+        return;
+      }
+
+      await registerBrowserPushToken(user, 'passenger');
+
+      setPushStatus('ready');
+      setPushMessage('Trip cancellation push alerts are enabled for this browser.');
+    } catch (error) {
+      setPushStatus('unavailable');
+      setPushMessage(error.message || 'Push notifications could not be enabled.');
+    }
+  };
+
+  const handleDismissNotification = async (notificationId) => {
+    if (!firebaseReady || !db) {
+      setNotifications((currentNotifications) =>
+        currentNotifications.filter((notification) => notification.id !== notificationId),
+      );
+      return;
+    }
+
+    await updateDoc(doc(db, FIRESTORE_COLLECTIONS.notifications, notificationId), {
+      status: NOTIFICATION_STATUS.read,
+      readAt: new Date().toISOString(),
+    });
+  };
+
+  const handleCancelSeat = async () => {
+    if (!rideToCancel) return;
+
+    if (!firebaseReady || !auth || !db) {
+      setUpcomingRides((currentRides) => currentRides.filter((ride) => ride.id !== rideToCancel.id));
+      setRideToCancel(null);
+      setMessage('Your seat reservation was cancelled.');
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user || rideToCancel.passengerId !== user.uid) {
+      setMessage('Error: You can only cancel your own seat reservation.');
+      return;
+    }
+
+    setCancellingRideId(rideToCancel.id);
+    setMessage('');
+
+    try {
+      const batch = writeBatch(db);
+      const requestRef = doc(db, FIRESTORE_COLLECTIONS.rideRequests, rideToCancel.id);
+      const notificationRef = doc(collection(db, FIRESTORE_COLLECTIONS.notifications));
+      const driverId = rideToCancel.tripOwnerId || rideToCancel.trip?.driverId;
+      const passengerName = user.displayName || rideToCancel.passengerName || 'A passenger';
+      const seatsRequested = rideToCancel.seatsRequested || 1;
+
+      batch.update(requestRef, {
+        status: RIDE_REQUEST_STATUS.cancelled,
+        cancelledAt: serverTimestamp(),
+      });
+
+      if (driverId) {
+        batch.set(notificationRef, {
+          type: 'seat_cancellation',
+          recipientId: driverId,
+          tripId: rideToCancel.tripId || '',
+          requestId: rideToCancel.id,
+          passengerId: user.uid,
+          passengerName,
+          passengerEmail: user.email || rideToCancel.passengerEmail || '',
+          seatsRequested,
+          status: NOTIFICATION_STATUS.unread,
+          message: `${passengerName} cancelled ${seatsRequested} seat reservation(s).`,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      setRideToCancel(null);
+      setMessage('Your seat reservation was cancelled.');
+    } catch (error) {
+      setMessage(`Error: ${error.message || 'Unable to cancel this seat reservation.'}`);
+    } finally {
+      setCancellingRideId('');
+    }
+  };
+
   return (
-    <div>
-      <h1>PassengerDashboard</h1>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
+      <header style={{ borderBottom: '1px solid #eee', paddingBottom: '20px', marginBottom: '30px' }}>
+        <h1>Passenger Dashboard</h1>
+        <p>Welcome back! Manage your upcoming rides or find a new trip to campus.</p>
+      </header>
+
+      {notifications.length > 0 && (
+        <section style={{ display: 'grid', gap: '10px', marginBottom: '24px' }}>
+          {notifications.map((notification) => (
+            <div
+              key={notification.id}
+              role="status"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '14px 16px',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                backgroundColor: '#fef2f2',
+                color: '#991b1b',
+                fontWeight: 700,
+              }}
+            >
+              <span>{notification.message || 'Your ride request update is ready.'}</span>
+              <button
+                type="button"
+                onClick={() => handleDismissNotification(notification.id)}
+                style={{
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  background: '#fff',
+                  color: '#991b1b',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  padding: '8px 10px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Mark read
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {message && (
+        <p
+          style={{
+            padding: '10px 12px',
+            borderRadius: '8px',
+            backgroundColor: message.startsWith('Error') ? '#fef2f2' : '#ecfdf5',
+            color: message.startsWith('Error') ? '#991b1b' : '#047857',
+            fontWeight: 700,
+          }}
+        >
+          {message}
+        </p>
+      )}
+
+      <section
+        style={{
+          marginBottom: '24px',
+          padding: '14px 16px',
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          backgroundColor: '#f9fafb',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ minWidth: '220px', flex: 1 }}>
+          <h2 style={{ margin: '0 0 4px', fontSize: '1rem' }}>Trip cancellation alerts</h2>
+          <p style={{ margin: 0, color: '#555', fontSize: '0.9rem' }}>
+            {pushMessage || 'Enable browser alerts if a driver cancels one of your approved rides.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleEnablePush}
+          disabled={pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied'}
+          style={{
+            border: '1px solid #0f766e',
+            borderRadius: '8px',
+            backgroundColor: pushStatus === 'ready' ? '#ecfdf5' : '#fff',
+            color: pushStatus === 'ready' ? '#047857' : '#0f766e',
+            cursor:
+              pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied'
+                ? 'not-allowed'
+                : 'pointer',
+            fontWeight: 700,
+            padding: '9px 12px',
+            opacity: pushStatus === 'working' || pushStatus === 'unavailable' || pushStatus === 'denied' ? 0.65 : 1,
+          }}
+        >
+          {pushStatus === 'working'
+            ? 'Enabling...'
+            : pushStatus === 'ready'
+              ? 'Enabled'
+              : 'Notification' in window && Notification.permission === 'granted'
+                ? 'Refresh token'
+                : 'Enable push'}
+        </button>
+      </section>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+        {/* Left Column: Search & Action Area */}
+        <section>
+          <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
+            {/* Embed the SearchTrips component directly or use a Link to navigate to it */}
+            <SearchTrips />
+          </div>
+        </section>
+
+        {/* Right Column: Bookings Area */}
+        <section>
+          {loading ? (
+            <p>Loading your rides...</p>
+          ) : (
+            <>
+              {/* Upcoming Rides */}
+              <div style={{ marginBottom: '30px' }}>
+                <h2>Upcoming Rides</h2>
+                {upcomingRides.length === 0 ? (
+                  <p style={{ color: '#666' }}>You have no upcoming rides booked.</p>
+                ) : (
+                  <ul style={{ listStyle: 'none', padding: 0 }}>
+                    {upcomingRides.map((ride) => (
+                      <li
+                        key={ride.id}
+                        style={{
+                          padding: '15px',
+                          border: '1px solid #ccc',
+                          borderRadius: '5px',
+                          marginBottom: '10px',
+                        }}
+                      >
+                        <strong>{ride.trip?.destination || 'Unknown destination'}</strong>
+                        <div style={{ color: '#555', marginTop: '6px' }}>
+                          {ride.trip?.origin || 'Unknown origin'} to {ride.trip?.destination || 'Unknown destination'}
+                        </div>
+                        <div style={{ color: '#555', marginTop: '6px' }}>
+                          {formatDeparture(ride.trip?.departureTime)}
+                        </div>
+                        <div style={{ color: '#555', marginTop: '6px' }}>
+                          {ride.seatsRequested || 1} seat(s) reserved
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setRideToCancel(ride)}
+                          disabled={cancellingRideId === ride.id}
+                          style={{
+                            marginTop: '12px',
+                            border: '1px solid #fecaca',
+                            borderRadius: '8px',
+                            backgroundColor: '#fff',
+                            color: '#b91c1c',
+                            cursor: cancellingRideId === ride.id ? 'wait' : 'pointer',
+                            fontWeight: 700,
+                            padding: '9px 12px',
+                          }}
+                        >
+                          {cancellingRideId === ride.id ? 'Cancelling...' : 'Cancel Seat'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Past Rides */}
+              <div>
+                <h2>Ride History</h2>
+                {pastRides.length === 0 ? (
+                  <p style={{ color: '#666' }}>You have no past rides.</p>
+                ) : (
+                  <ul style={{ listStyle: 'none', padding: 0 }}>
+                    {pastRides.map(ride => (
+                      <li key={ride.id} style={{ padding: '15px', border: '1px solid #eee', borderRadius: '5px', marginBottom: '10px' }}>
+                        {/* TODO: Create a PastRideCard component */}
+                        <strong>{ride.destination}</strong> - {ride.date}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+
+      {rideToCancel && (
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            zIndex: 50,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-seat-title"
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              borderRadius: '8px',
+              backgroundColor: '#fff',
+              padding: '22px',
+              boxShadow: '0 20px 45px rgba(15, 23, 42, 0.24)',
+            }}
+          >
+            <h2 id="cancel-seat-title" style={{ marginTop: 0 }}>
+              Cancel seat reservation?
+            </h2>
+            <p style={{ color: '#555', lineHeight: 1.5 }}>
+              This will remove the upcoming ride from your dashboard and let the driver know you are no longer joining.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button
+                type="button"
+                onClick={() => setRideToCancel(null)}
+                disabled={Boolean(cancellingRideId)}
+                style={{
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  backgroundColor: '#fff',
+                  color: '#333',
+                  cursor: cancellingRideId ? 'wait' : 'pointer',
+                  fontWeight: 700,
+                  padding: '10px 14px',
+                }}
+              >
+                Keep Seat
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelSeat}
+                disabled={Boolean(cancellingRideId)}
+                style={{
+                  border: '1px solid #b91c1c',
+                  borderRadius: '8px',
+                  backgroundColor: '#b91c1c',
+                  color: '#fff',
+                  cursor: cancellingRideId ? 'wait' : 'pointer',
+                  fontWeight: 700,
+                  padding: '10px 14px',
+                }}
+              >
+                {cancellingRideId ? 'Cancelling...' : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

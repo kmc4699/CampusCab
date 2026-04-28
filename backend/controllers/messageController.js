@@ -1,8 +1,13 @@
 const { db } = require('../config/firebaseConfig');
 
+const sendPlannedApiResponse = (res, action) =>
+  res.status(501).json({
+    error: `${action} is planned for the Express API but is not part of the active direct Firestore flow yet.`,
+  });
+
 /**
- * Firestore Schema — messages sub-collection under tripListings
- * tripListings/{tripId}/messages/{messageId}
+ * Planned Firestore Schema — messages sub-collection under trips
+ * trips/{tripId}/messages/{messageId}
  * {
  *   messageId: string,
  *   senderId: string,
@@ -18,7 +23,7 @@ const { db } = require('../config/firebaseConfig');
  * 3. Real-time delivery is handled client-side via Firestore onSnapshot listener
  */
 const sendMessage = async (req, res) => {
-  // TODO: implement sendMessage
+  return sendPlannedApiResponse(res, 'Trip messaging');
 };
 
 /**
@@ -28,7 +33,7 @@ const sendMessage = async (req, res) => {
  * Note: For real-time chat, the client should use Firestore onSnapshot directly
  */
 const getMessages = async (req, res) => {
-  // TODO: implement getMessages
+  return sendPlannedApiResponse(res, 'Message history');
 };
 
 module.exports = { sendMessage, getMessages };

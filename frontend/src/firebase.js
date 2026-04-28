@@ -1,8 +1,9 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
+import { getAnalytics, isSupported } from "firebase/analytics";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, isSupported as isMessagingSupported } from "firebase/messaging";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -18,9 +19,38 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+const hasFirebaseConfig = Boolean(
+  firebaseConfig.apiKey &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId &&
+    firebaseConfig.appId,
+);
+
+const app = hasFirebaseConfig ? initializeApp(firebaseConfig) : null;
+const messagingPromise = app
+  ? isMessagingSupported()
+      .then((supported) => (supported ? getMessaging(app) : null))
+      .catch(() => null)
+  : Promise.resolve(null);
+
+if (app) {
+  // Embedded browsers and localhost sessions can fail analytics startup.
+  isSupported()
+    .then((supported) => {
+      if (supported) {
+        getAnalytics(app);
+      }
+    })
+    .catch(() => {});
+}
+
+export const firebaseReady = hasFirebaseConfig;
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
+export const messaging = messagingPromise;
+export const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 export default app;
+
+if (auth) {
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
+}

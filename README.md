@@ -6,6 +6,16 @@ A peer-to-peer carpool booking platform for university students.
 
 CampusCab connects university drivers and passengers for shared rides to and from campus. Only verified university students (`.ac.nz` email) can register.
 
+## Current Architecture
+
+The active app flow is:
+
+```
+React frontend → Firebase Auth / Firestore
+```
+
+Driver trip creation, vehicle profiles, driver request handling, passenger trip search, and in-app request alerts use the Firebase client SDK directly against hosted Firestore. Browser push notifications are sent by Firebase Cloud Functions when ride requests are created. The Express backend remains in the repo as a planned secondary API surface, but it is not required for the main frontend demo flow.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -14,6 +24,7 @@ CampusCab connects university drivers and passengers for shared rides to and fro
 | Backend | Node.js 24.14.0 + Express.js |
 | Database | Firebase Firestore (NoSQL) |
 | Authentication | Firebase Authentication |
+| Push | Firebase Cloud Messaging + Cloud Functions |
 | Geospatial | h3-js |
 
 ## Project Structure
@@ -24,10 +35,10 @@ CampusCab/
 │   ├── config/
 │   │   └── firebaseConfig.js     # Firebase Admin SDK init
 │   ├── controllers/
-│   │   ├── authController.js     # Registration, login, logout
-│   │   ├── tripController.js     # Create, search, view, cancel trips
-│   │   ├── bookingController.js  # Request, approve, decline bookings
-│   │   └── messageController.js  # Trip messaging
+│   │   ├── authController.js     # Planned auth API handlers
+│   │   ├── tripController.js     # Planned trip API handlers
+│   │   ├── bookingController.js  # Planned booking API handlers
+│   │   └── messageController.js  # Planned messaging API handlers
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── tripRoutes.js
@@ -38,11 +49,12 @@ CampusCab/
 └── frontend/
     └── src/
         ├── pages/
-        │   ├── AuthUI.jsx
+        │   ├── SearchTrips.jsx
         │   ├── PassengerDashboard.jsx
         │   └── DriverDashboard.jsx
-        ├── services/
-        │   └── api.js            # Fetch wrappers for all API routes
+        ├── hooks/
+        │   └── useIsDesktop.js
+        ├── firestoreModel.js
         ├── App.jsx
         └── main.jsx
 ```
@@ -51,7 +63,7 @@ CampusCab/
 
 ### Prerequisites
 
-- Node.js v24.14.0
+- Node.js 22+ or 24+
 - A Firebase project with Firestore and Authentication enabled
 
 ### 1. Clone the repository
@@ -61,51 +73,73 @@ git clone <repo-url>
 cd CampusCab
 ```
 
-### 2. Backend setup
+### 2. Frontend setup
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+```
+
+Edit `frontend/.env` with the Firebase web app values from Firebase Console. Browser push notifications also require `VITE_FIREBASE_VAPID_KEY`, found in Firebase Console → Project settings → Cloud Messaging → Web Push certificates.
+
+```bash
+npm run dev
+# App runs on http://localhost:5173
+```
+
+### 3. Optional backend setup
+<!-- Dont use this anymore - we are only using firebase -->
+The frontend uses Firebase directly for the active app flow. The Express backend is kept for planned API work and can be run separately when needed.
 
 ```bash
 cd backend
 npm install
 cp .env.example .env
-```
-
-Edit `.env` with your Firebase service account credentials (download from Firebase Console → Project Settings → Service Accounts → Generate new private key).
-
-```bash
 node server.js
 # Server runs on http://localhost:3000
 ```
 
-### 3. Frontend setup
+For backend Firebase Admin access, set `GOOGLE_APPLICATION_CREDENTIALS` or the service-account fields in `backend/.env`.
+
+### 4. Optional Cloud Functions setup for browser push
 
 ```bash
-cd frontend
+cd backend/functions
 npm install
-npm run dev
-# App runs on http://localhost:5173
 ```
 
-## API Routes
+Deploy Functions from the repo root when Firebase CLI is signed in to `campuscab-63e48`:
+
+```bash
+firebase deploy --only functions
+```
+
+To test push notifications, sign in as a driver, open the driver dashboard, enable browser push alerts, then request that driver's trip from a passenger account. The driver should see the in-app dashboard alert and, when the browser allows it, a browser push notification.
+
+## Express API Routes
+
+These routes are mounted by the backend. Auth, trips, and messages are still planned API surfaces. Bookings are implemented and mirror the active Firestore request flow.
 
 ### Auth — `/api/auth`
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/register` | Register with `.ac.nz` email |
-| POST | `/login` | Verify Firebase ID token |
-| POST | `/logout` | Revoke session |
+| POST | `/register` | Planned registration endpoint |
+| POST | `/login` | Planned Firebase ID token profile endpoint |
+| POST | `/logout` | Planned session revocation endpoint |
 
 ### Trips — `/api/trips`
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/` | Driver creates a trip listing |
-| GET | `/search?campus=&date=` | Search available trips |
-| GET | `/:id` | Get trip details |
-| DELETE | `/:id` | Cancel a trip |
+| POST | `/` | Planned trip creation endpoint |
+| GET | `/search?campus=&date=` | Planned trip search endpoint |
+| GET | `/:id` | Planned trip details endpoint |
+| DELETE | `/:id` | Planned trip cancellation endpoint |
 
 ### Bookings — `/api/bookings`
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/` | Passenger requests to join a trip |
+| POST | `/` | Passenger requests to join a trip and creates a driver dashboard notification |
 | PUT | `/:id/approve` | Driver approves request (atomic transaction) |
 | PUT | `/:id/decline` | Driver declines request |
 | DELETE | `/:id` | Passenger cancels request |
@@ -116,20 +150,22 @@ npm run dev
 | POST | `/` | Send a message |
 | GET | `/:tripId` | Get messages for a trip |
 
-## Frontend Routes
+## Frontend Screens
 
-| Path | Component |
+| Screen | Component |
 |---|---|
-| `/` | AuthUI |
-| `/passenger` | PassengerDashboard |
-| `/driver` | DriverDashboard |
+| Login/register | Login |
+| Driver tab | DriverDashboard, VehicleProfile, CreateTrip |
+| Passenger tab | PassengerDashboard, SearchTrips |
+| Admin tab | Placeholder |
 
 ## Database Collections
 
-- **users** — userId, fullName, email, role, universityId, studentVerified, averageRating, accountStatus
-- **vehicles** — vehicleId, driverId, plateNumber, make, model, colour, seatCapacity, verified
-- **tripListings** — tripId, driverId, originArea, destinationCampus, departureDate, departureTime, seats, pricePerSeat, tripStatus, h3Index
-- **rideRequests** — requestId, tripId, passengerId, seatsRequested, requestStatus, pickupLocation
+- **trips** — driverId, driverEmail, origin, destination, departureTime, seats, availableSeats, status, createdAt
+- **vehicles** — document ID is the driver UID; make, model, licensePlate
+- **rideRequests** — request documents linked to trips; status values use pending, approved, declined, cancelled
+- **notifications** — driver dashboard alerts for ride requests; unread notifications are shown on the driver dashboard
+- **pushTokens** — driver browser FCM tokens used by Cloud Functions for push notifications
 
 ## Team
 
