@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db } from './firebase';
+import { auth, db, firebaseReady } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import React, { useState } from 'react';
-import { auth, firebaseReady } from './firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import useIsDesktop from './hooks/useIsDesktop';
 import { buttons, colors, inputs, radius, shadows, typography } from './theme';
 
@@ -62,13 +59,13 @@ function Login({ onLoginSuccess }) {
           return;
         }
         const role = data.role || 'Passenger';
-        onLoginSuccess({ role: 'Admin', uid: credential.user.uid });
+        onLoginSuccess({ role, uid: credential.user.uid });
       } catch (error) {
         // USER STORY 2, TEST 1: Invalid login alert
         setMessage("Invalid Login. Please check your email and password.");
         await signInWithEmailAndPassword(auth, email, password);
         onLoginSuccess();
-      } catch {
+      } catch (err) {
         setMessage('Invalid Login. Please check your email and password.');
       }
     }
