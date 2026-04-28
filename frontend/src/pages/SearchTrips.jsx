@@ -8,6 +8,8 @@ import {
   RIDE_REQUEST_STATUS,
 } from '../firestoreModel';
 import { colors, radius, spacing, typography, surfaces, buttons, inputs, pills, shadows } from '../theme';
+import { AddressSearch } from '../components/MapComponents';
+import * as turf from '@turf/turf';
 
 function isSameDepartureDate(departureTime, selectedDate) {
   return Boolean(departureTime && selectedDate && departureTime.startsWith(selectedDate));
@@ -29,6 +31,7 @@ const SearchTrips = () => {
   const [campus, setCampus] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [passengerLocation, setPassengerLocation] = useState(null);
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -61,16 +64,38 @@ const SearchTrips = () => {
       const results = [];
       const selectedDateTime = new Date(`${date}T${time}`);
       
+      let passengerPt = null;
+      if (passengerLocation) {
+        passengerPt = turf.point([passengerLocation.lon, passengerLocation.lat]);
+      }
+      
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         if (isSameDepartureDate(data.departureTime, date) && hasAvailableSeats(data)) {
           const tripDateTime = new Date(data.departureTime);
           if (tripDateTime >= selectedDateTime) {
-            results.push({ id: doc.id, ...data });
+            
+            // Check 10km radius if the trip has a routeGeoJson and passenger provided a location
+            let distanceKm = null;
+            let withinRange = true;
+
+            if (data.routeGeoJson && passengerPt) {
+              const routeLine = turf.lineString(data.routeGeoJson.coordinates);
+              distanceKm = turf.pointToLineDistance(passengerPt, routeLine, { units: 'kilometers' });
+              
+              if (distanceKm > 10) {
+                withinRange = false;
+              }
+            }
+            
+            if (withinRange) {
+              results.push({ id: doc.id, distanceKm, ...data });
+            }
           }
         }
       });
 
+      // Sort by closest time first
       results.sort((a, b) => new Date(a.departureTime) - new Date(b.departureTime));
 
       setTrips(results);
@@ -153,6 +178,12 @@ const SearchTrips = () => {
       
       <form onSubmit={handleSearch} style={{ ...surfaces.card, padding: spacing.xl, marginBottom: spacing.xxl }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, marginBottom: spacing.xl }}>
+          <AddressSearch 
+            label="Your Pickup Location" 
+            placeholder="e.g. 123 Main St" 
+            onSelect={setPassengerLocation} 
+          />
+          
           <div>
             <label htmlFor="campus" style={{ ...inputs.label }}>Destination Campus</label>
             <select 
@@ -197,11 +228,11 @@ const SearchTrips = () => {
 
         <button 
           type="submit" 
-          disabled={loading || !campus || !date || !time}
+          disabled={loading || !campus || !date || !time || !passengerLocation}
           style={{ 
             ...buttons.primary, 
-            opacity: (loading || !campus || !date || !time) ? 0.7 : 1,
-            cursor: (loading || !campus || !date || !time) ? 'not-allowed' : 'pointer',
+            opacity: (loading || !campus || !date || !time || !passengerLocation) ? 0.7 : 1,
+            cursor: (loading || !campus || !date || !time || !passengerLocation) ? 'not-allowed' : 'pointer',
           }}
         >
           {loading ? 'Searching...' : 'Search Rides'}
