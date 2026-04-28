@@ -81,6 +81,16 @@ function CreateTrip() {
     e.preventDefault();
     setMessage('');
 
+    if (!origin || !destination) {
+      setMessage('Error: Please select an origin and destination from the search suggestions.');
+      return;
+    }
+
+    if (!routeGeoJson) {
+      setMessage('Error: Please wait for the map route to calculate.');
+      return;
+    }
+
     if (seats <= 0) {
       setMessage('Error: You must have at least 1 available seat.');
       return;
@@ -200,12 +210,12 @@ function CreateTrip() {
 
         <button
           type="submit"
-          disabled={isSubmitting || !origin || !destination || !routeGeoJson}
+          disabled={isSubmitting}
           style={{
             ...buttons.accent,
             marginTop: '4px',
-            opacity: (isSubmitting || !origin || !destination || !routeGeoJson) ? 0.7 : 1,
-            cursor: (isSubmitting || !origin || !destination || !routeGeoJson) ? 'not-allowed' : 'pointer',
+            opacity: isSubmitting ? 0.7 : 1,
+            cursor: isSubmitting ? 'not-allowed' : 'pointer',
           }}
         >
           {isSubmitting ? 'Publishing…' : 'Publish trip'}

@@ -50,35 +50,43 @@ export function AddressSearch({ label, onSelect, placeholder }) {
         onFocus={() => setFocused(true)}
         style={{ ...inputs.field, ...(focused ? inputs.fieldFocus : {}) }}
       />
-      {focused && results.length > 0 && (
+      {focused && query.length >= 3 && (
         <div style={{ 
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, 
           background: 'white', borderRadius: radius.md, boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
           marginTop: '4px', overflow: 'hidden', border: `1px solid ${colors.border}`
         }}>
-          {results.map((r, i) => (
-            <div 
-              key={i} 
-              onMouseDown={() => {
-                setQuery(r.display_name);
-                setResults([]);
-                onSelect({
-                  name: r.display_name,
-                  lat: parseFloat(r.lat),
-                  lon: parseFloat(r.lon)
-                });
-                setFocused(false);
-              }}
-              style={{ 
-                padding: '12px 16px', borderBottom: `1px solid ${colors.border}`, cursor: 'pointer',
-                ...typography.small
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceMuted}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-            >
-              {r.display_name}
+          {loading ? (
+            <div style={{ padding: '12px 16px', ...typography.small, color: colors.textSubtle }}>Searching...</div>
+          ) : results.length > 0 ? (
+            results.map((r, i) => (
+              <div 
+                key={i} 
+                onMouseDown={() => {
+                  setQuery(r.display_name);
+                  setResults([]);
+                  onSelect({
+                    name: r.display_name,
+                    lat: parseFloat(r.lat),
+                    lon: parseFloat(r.lon)
+                  });
+                  setFocused(false);
+                }}
+                style={{ 
+                  padding: '12px 16px', borderBottom: `1px solid ${colors.border}`, cursor: 'pointer',
+                  ...typography.small
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceMuted}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+              >
+                {r.display_name}
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: '12px 16px', ...typography.small, color: colors.danger }}>
+              No results found for "{query}". Try a different address or be more specific.
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
