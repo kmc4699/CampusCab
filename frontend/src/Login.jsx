@@ -63,10 +63,6 @@ function Login({ onLoginSuccess }) {
       } catch (error) {
         // USER STORY 2, TEST 1: Invalid login alert
         setMessage("Invalid Login. Please check your email and password.");
-        await signInWithEmailAndPassword(auth, email, password);
-        onLoginSuccess();
-      } catch (err) {
-        setMessage('Invalid Login. Please check your email and password.');
       }
     }
   };
