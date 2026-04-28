@@ -302,6 +302,13 @@ const SearchTrips = () => {
                       borderTop: `1px solid ${colors.border}`,
                       animation: 'fadeIn 0.3s ease'
                     }}>
+                      <div style={{ marginBottom: spacing.md, ...typography.small, color: colors.textSubtle }}>
+                        <strong>Driver:</strong> {trip.driverEmail} <br/>
+                        {trip.distanceKm !== null && (
+                          <span><strong>Proximity:</strong> Approx. {trip.distanceKm.toFixed(1)} km from your pickup location.</span>
+                        )}
+                      </div>
+                      
                       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg }}>
                         <label htmlFor={`seats-${trip.id}`} style={{ ...inputs.label, marginBottom: 0 }}>Seats to book</label>
                         <input
