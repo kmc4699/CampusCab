@@ -4,6 +4,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { buttons, colors, inputs, pills, radius, shadows, typography } from './theme';
 import { FIRESTORE_COLLECTIONS, TRIP_STATUS } from './firestoreModel';
 import useIsDesktop from './hooks/useIsDesktop';
+import { AddressSearch, RouteMap } from './components/MapComponents';
 
 function Field({ label, helper, children }) {
   return (
@@ -66,8 +67,9 @@ function StyledSelect(props) {
 }
 
 function CreateTrip() {
-  const [origin, setOrigin] = useState('North Shore');
-  const [destination, setDestination] = useState('City Campus');
+  const [origin, setOrigin] = useState(null);
+  const [destination, setDestination] = useState(null);
+  const [routeGeoJson, setRouteGeoJson] = useState(null);
   const [departureTime, setDepartureTime] = useState('');
   const [seats, setSeats] = useState(3);
   const [message, setMessage] = useState('');
@@ -97,8 +99,11 @@ function CreateTrip() {
         const tripData = {
           driverId: 'demo-driver',
           driverEmail: 'demo@autuni.ac.nz',
-          origin,
-          destination,
+          origin: origin.name,
+          destination: destination.name,
+          originLocation: { lat: origin.lat, lon: origin.lon },
+          destinationLocation: { lat: destination.lat, lon: destination.lon },
+          routeGeoJson,
           departureTime,
           seats: parseInt(seats, 10),
           availableSeats: parseInt(seats, 10),
@@ -116,8 +121,11 @@ function CreateTrip() {
       const tripData = {
         driverId: user.uid,
         driverEmail: user.email,
-        origin,
-        destination,
+        origin: origin.name,
+        destination: destination.name,
+        originLocation: { lat: origin.lat, lon: origin.lon },
+        destinationLocation: { lat: destination.lat, lon: destination.lon },
+        routeGeoJson,
         departureTime,
         seats: parseInt(seats, 10),
         availableSeats: parseInt(seats, 10),
@@ -155,23 +163,19 @@ function CreateTrip() {
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: twoColumns, gap: '12px' }}>
-          <Field label="Origin">
-            <StyledSelect value={origin} onChange={(e) => setOrigin(e.target.value)}>
-              <option value="North Shore">North Shore</option>
-              <option value="West Auckland">West Auckland</option>
-              <option value="South Auckland">South Auckland</option>
-              <option value="East Auckland">East Auckland</option>
-            </StyledSelect>
-          </Field>
-
-          <Field label="Destination">
-            <StyledSelect value={destination} onChange={(e) => setDestination(e.target.value)}>
-              <option value="City Campus">City Campus</option>
-              <option value="North Campus">North Campus</option>
-              <option value="South Campus">South Campus</option>
-            </StyledSelect>
-          </Field>
+          <AddressSearch 
+            label="Origin Address" 
+            placeholder="e.g. 123 Main St, North Shore" 
+            onSelect={setOrigin} 
+          />
+          <AddressSearch 
+            label="Destination Address" 
+            placeholder="e.g. AUT City Campus" 
+            onSelect={setDestination} 
+          />
         </div>
+
+        <RouteMap origin={origin} destination={destination} setRouteGeoJson={setRouteGeoJson} />
 
         <div style={{ display: 'grid', gridTemplateColumns: twoColumns, gap: '12px' }}>
           <Field label="Departure date & time" helper="Must be in the future.">
@@ -196,12 +200,12 @@ function CreateTrip() {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !origin || !destination || !routeGeoJson}
           style={{
             ...buttons.accent,
             marginTop: '4px',
-            opacity: isSubmitting ? 0.7 : 1,
-            cursor: isSubmitting ? 'wait' : 'pointer',
+            opacity: (isSubmitting || !origin || !destination || !routeGeoJson) ? 0.7 : 1,
+            cursor: (isSubmitting || !origin || !destination || !routeGeoJson) ? 'not-allowed' : 'pointer',
           }}
         >
           {isSubmitting ? 'Publishing…' : 'Publish trip'}

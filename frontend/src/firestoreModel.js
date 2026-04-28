@@ -4,6 +4,7 @@ export const FIRESTORE_COLLECTIONS = {
   rideRequests: 'rideRequests',
   notifications: 'notifications',
   pushTokens: 'pushTokens',
+  users: 'users',
 };
 
 export const TRIP_STATUS = {
