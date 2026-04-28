@@ -1,3 +1,7 @@
+import React, { useState, useEffect } from 'react';
+import { auth, db } from './firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { auth, firebaseReady } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
@@ -48,6 +52,20 @@ function Login({ onLoginSuccess }) {
         return;
       }
       try {
+        // USER STORY 2, TEST 2: Secure login
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        const userDoc = await getDoc(doc(db, 'users', credential.user.uid));
+        const data = userDoc.exists() ? userDoc.data() : {};
+        if (data.accountStatus === 'Suspended') {
+          await auth.signOut();
+          setMessage(`Your account has been suspended. Reason: ${data.suspensionReason || 'Policy violation'}. Duration: ${data.suspensionDuration || 'Permanent'}.`);
+          return;
+        }
+        const role = data.role || 'Passenger';
+        onLoginSuccess({ role: 'Admin', uid: credential.user.uid });
+      } catch (error) {
+        // USER STORY 2, TEST 1: Invalid login alert
+        setMessage("Invalid Login. Please check your email and password.");
         await signInWithEmailAndPassword(auth, email, password);
         onLoginSuccess();
       } catch {
