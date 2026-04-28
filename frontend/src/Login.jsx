@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 function Login({ onLoginSuccess }) {
   const [mode, setMode] = useState('home');
@@ -61,8 +62,10 @@ function Login({ onLoginSuccess }) {
     } else {
       try {
         // USER STORY 2, TEST 2: Secure login
-        await signInWithEmailAndPassword(auth, email, password);
-        onLoginSuccess();
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        const userDoc = await getDoc(doc(db, 'users', credential.user.uid));
+        const role = userDoc.exists() ? (userDoc.data().role || 'Passenger') : 'Passenger';
+        onLoginSuccess({ role: 'Admin', uid: credential.user.uid });
       } catch (error) {
         // USER STORY 2, TEST 1: Invalid login alert
         setMessage("Invalid Login. Please check your email and password.");
