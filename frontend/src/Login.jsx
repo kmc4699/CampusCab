@@ -1,10 +1,21 @@
+/**
+ * @fileoverview Main authentication component for CampusCab.
+ * Handles both secure user login and new student registration.
+ * Includes strict university email validation and account suspension checks.
+ */
+
+
 import React, { useState, useEffect } from 'react';
 import { auth, db, firebaseReady } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import useIsDesktop from './hooks/useIsDesktop';
 import { buttons, colors, inputs, radius, shadows, typography } from './theme';
-
+/**
+ * Main Login and Registration UI Component.
+ * @param {Object} props
+ * @param {Function} props.onLoginSuccess - Callback triggered when authentication is successful, passing user role and uid.
+ */
 function Login({ onLoginSuccess }) {
   const [mode, setMode] = useState('home');
   const [email, setEmail] = useState('');
@@ -13,14 +24,22 @@ function Login({ onLoginSuccess }) {
   const [emailFocus, setEmailFocus] = useState(false);
   const [passFocus, setPassFocus] = useState(false);
   const isDesktop = useIsDesktop();
-
+  /**
+   * Toggles the UI state between 'home', 'login', and 'register' modes.
+   * Automatically clears form inputs and error messages to ensure a clean state.
+   * @param {string} next - The next view mode to transition to.
+   */
   const switchMode = (next) => {
     setMode(next);
     setMessage('');
     setEmail('');
     setPassword('');
   };
-
+  /**
+   * Handles the form submission for both Registration and Login flows.
+   * Validates AUT student emails during registration and enforces account suspensions during login.
+   * @param {Event} e - Form submission event to prevent default browser reload.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
@@ -30,6 +49,7 @@ function Login({ onLoginSuccess }) {
         setMessage('Demo mode: Firebase is not configured, so registration is disabled locally.');
         return;
       }
+      // Strict University Email Validation
       const normalised = email.trim().toLowerCase();
       const isAutEmail = normalised.endsWith('@aut.ac.nz') || normalised.endsWith('@autuni.ac.nz');
       if (!isAutEmail) {
@@ -51,6 +71,7 @@ function Login({ onLoginSuccess }) {
       try {
         // USER STORY 2, TEST 2: Secure login
         const credential = await signInWithEmailAndPassword(auth, email, password);
+        // Fetch user profile to check for admin suspensions
         const userDoc = await getDoc(doc(db, 'users', credential.user.uid));
         const data = userDoc.exists() ? userDoc.data() : {};
         if (data.accountStatus === 'Suspended') {
