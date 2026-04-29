@@ -46,6 +46,7 @@ function sortByDepartureTime(a, b) {
 
 function PassengerDashboard() {
   const [upcomingRides, setUpcomingRides] = useState([]);
+  const [activeRideTab, setActiveRideTab] = useState('upcoming');
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -312,6 +313,8 @@ function PassengerDashboard() {
     );
   }, [upcomingRides]);
 
+  const visibleRides = activeRideTab === 'past' ? actualPastRides : actualUpcomingRides;
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
       <header style={{ borderBottom: '1px solid #eee', paddingBottom: '20px', marginBottom: '30px' }}>
@@ -436,87 +439,117 @@ function PassengerDashboard() {
             <p>Loading your rides...</p>
           ) : (
             <>
-              {/* Upcoming Rides */}
               <div style={{ marginBottom: '30px' }}>
-                <h2>Upcoming Rides</h2>
-                {actualUpcomingRides.length === 0 ? (
-                  <p style={{ color: '#666' }}>You have no upcoming rides booked.</p>
-                ) : (
-                  <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {actualUpcomingRides.map((ride) => (
-                      <li
-                        key={ride.id}
+                <h2>My Rides</h2>
+                <div
+                  role="tablist"
+                  aria-label="Ride dashboard tabs"
+                  style={{
+                    display: 'flex',
+                    gap: '8px',
+                    borderBottom: '1px solid #e5e7eb',
+                    marginBottom: '16px',
+                  }}
+                >
+                  {[
+                    { id: 'upcoming', label: 'Upcoming', count: actualUpcomingRides.length },
+                    { id: 'past', label: 'Past Rides', count: actualPastRides.length },
+                  ].map((tab) => {
+                    const isActive = activeRideTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => setActiveRideTab(tab.id)}
                         style={{
-                          padding: '15px',
-                          border: '1px solid #ccc',
-                          borderRadius: '5px',
-                          marginBottom: '10px',
+                          border: 'none',
+                          borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
+                          background: 'transparent',
+                          color: isActive ? '#1d4ed8' : '#555',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          padding: '10px 8px',
                         }}
                       >
-                        <strong>{ride.trip?.destination || 'Unknown destination'}</strong>
-                        <div style={{ color: '#555', marginTop: '6px' }}>
-                          {ride.trip?.origin || 'Unknown origin'} to {ride.trip?.destination || 'Unknown destination'}
-                        </div>
-                        <div style={{ color: '#555', marginTop: '6px' }}>
-                          {formatDeparture(ride.trip?.departureTime)}
-                        </div>
-                        <div style={{ color: '#555', marginTop: '6px' }}>
-                          {ride.seatsRequested || 1} seat(s) reserved
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setRideToCancel(ride)}
-                          disabled={cancellingRideId === ride.id}
-                          style={{
-                            marginTop: '12px',
-                            border: '1px solid #fecaca',
-                            borderRadius: '8px',
-                            backgroundColor: '#fff',
-                            color: '#b91c1c',
-                            cursor: cancellingRideId === ride.id ? 'wait' : 'pointer',
-                            fontWeight: 700,
-                            padding: '9px 12px',
-                          }}
-                        >
-                          {cancellingRideId === ride.id ? 'Cancelling...' : 'Cancel Seat'}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                        {tab.label} ({tab.count})
+                      </button>
+                    );
+                  })}
+                </div>
 
-              {/* Past Rides & Ratings */}
-              <div>
-                <h2>Ride History</h2>
-                {actualPastRides.length === 0 ? (
-                  <p style={{ color: '#666' }}>You have no past rides.</p>
+                {visibleRides.length === 0 ? (
+                  <p style={{ color: '#666' }}>
+                    {activeRideTab === 'past' ? 'You have no past rides.' : 'You have no upcoming rides booked.'}
+                  </p>
                 ) : (
                   <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {actualPastRides.map(ride => {
+                    {visibleRides.map((ride) => {
                       const isRated = ratedRideIds.includes(ride.id) || ride.hasRated;
+                      const isPastTab = activeRideTab === 'past';
                       return (
-                        <li key={`past-${ride.id}`} style={{ padding: '15px', border: '1px solid #eee', borderRadius: '5px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <li
+                          key={`${activeRideTab}-${ride.id}`}
+                          style={{
+                            padding: '15px',
+                            border: '1px solid #ccc',
+                            borderRadius: '5px',
+                            marginBottom: '10px',
+                            display: isPastTab ? 'flex' : 'block',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '12px',
+                          }}
+                        >
                           <div>
                             <strong>{ride.trip?.destination || 'Unknown destination'}</strong>
-                            <div style={{ color: '#555', fontSize: '0.9rem' }}>{formatDeparture(ride.trip?.departureTime)}</div>
+                            <div style={{ color: '#555', marginTop: '6px' }}>
+                              {ride.trip?.origin || 'Unknown origin'} to {ride.trip?.destination || 'Unknown destination'}
+                            </div>
+                            <div style={{ color: '#555', marginTop: '6px' }}>
+                              {formatDeparture(ride.trip?.departureTime)}
+                            </div>
+                            <div style={{ color: '#555', marginTop: '6px' }}>
+                              {ride.seatsRequested || 1} seat(s) reserved
+                            </div>
                           </div>
-                          
-                          <button 
-                            onClick={() => setRatingModalRide(ride)}
-                            disabled={isRated}
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: '8px',
-                              border: 'none',
-                              backgroundColor: isRated ? '#e5e7eb' : '#2563eb',
-                              color: isRated ? '#9ca3af' : '#fff',
-                              cursor: isRated ? 'not-allowed' : 'pointer',
-                              fontWeight: 'bold'
-                            }}
-                          >
-                            {isRated ? 'Rated ★' : 'Leave Rating'}
-                          </button>
+                          {isPastTab ? (
+                            <button
+                              type="button"
+                              onClick={() => setRatingModalRide(ride)}
+                              disabled={isRated}
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                backgroundColor: isRated ? '#e5e7eb' : '#2563eb',
+                                color: isRated ? '#9ca3af' : '#fff',
+                                cursor: isRated ? 'not-allowed' : 'pointer',
+                                fontWeight: 'bold',
+                              }}
+                            >
+                              {isRated ? 'Rated ★' : 'Leave Rating'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setRideToCancel(ride)}
+                              disabled={cancellingRideId === ride.id}
+                              style={{
+                                marginTop: '12px',
+                                border: '1px solid #fecaca',
+                                borderRadius: '8px',
+                                backgroundColor: '#fff',
+                                color: '#b91c1c',
+                                cursor: cancellingRideId === ride.id ? 'wait' : 'pointer',
+                                fontWeight: 700,
+                                padding: '9px 12px',
+                              }}
+                            >
+                              {cancellingRideId === ride.id ? 'Cancelling...' : 'Cancel Seat'}
+                            </button>
+                          )}
                         </li>
                       );
                     })}
