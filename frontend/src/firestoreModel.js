@@ -16,6 +16,8 @@ export const FIRESTORE_COLLECTIONS = {
   pushTokens: 'pushTokens',
   ratings: 'ratings',
   users: 'users',
+  reports: 'reports',
+  auditLogs: 'auditLogs',
 };
 
 /**

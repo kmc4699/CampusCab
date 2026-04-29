@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { db } from '../firebase';
+import { FIRESTORE_COLLECTIONS } from '../firestoreModel';
 
 const VIOLATION_TYPES = ['All', 'Hate Speech', 'Inappropriate Content', 'Spam', 'Harassment', 'Other'];
 
@@ -15,13 +18,73 @@ export default function ReportedUsersDashboard({ onSelectUser }) {
   const [filter, setFilter] = useState('All');
 
   useEffect(() => {
-    fetch('/api/admin/reports')
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to load reports');
-        return r.json();
-      })
-      .then((data) => { setReports(data); setLoading(false); })
-      .catch((err) => { setError(err.message); setLoading(false); });
+    const load = async () => {
+      try {
+        const q = query(
+          collection(db, FIRESTORE_COLLECTIONS.reports),
+          orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+
+        const grouped = {};
+        const now = Date.now();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+
+        snapshot.forEach((docSnap) => {
+          const data = { id: docSnap.id, ...docSnap.data() };
+          const uid = data.reportedUserId;
+
+          if (!grouped[uid]) {
+            grouped[uid] = {
+              reportedUserId: uid,
+              reportedUserName: data.reportedUserName || uid,
+              reports: [],
+              recentCount: 0,
+              status: 'New',
+            };
+          }
+
+          grouped[uid].reports.push(data);
+
+          const reportTime = data.createdAt?.toMillis?.() ?? 0;
+          if (now - reportTime < twentyFourHours) {
+            grouped[uid].recentCount += 1;
+          }
+
+          const statusPriority = { New: 2, 'In-Progress': 1, Resolved: 0 };
+          if ((statusPriority[data.status] ?? 0) > (statusPriority[grouped[uid].status] ?? 0)) {
+            grouped[uid].status = data.status;
+          }
+        });
+
+        const result = Object.values(grouped).map((user) => {
+          const counts = {};
+          user.reports.forEach((r) => {
+            counts[r.violationType] = (counts[r.violationType] || 0) + 1;
+          });
+          const topViolation =
+            Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
+
+          return {
+            reportedUserId: user.reportedUserId,
+            reportedUserName: user.reportedUserName,
+            topViolationType: topViolation,
+            reportCount: user.reports.length,
+            isHighPriority: user.recentCount > 5,
+            status: user.status,
+          };
+        });
+
+        result.sort((a, b) => b.isHighPriority - a.isHighPriority || b.reportCount - a.reportCount);
+        setReports(result);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
   }, []);
 
   const filtered = filter === 'All'
