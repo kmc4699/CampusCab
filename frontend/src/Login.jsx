@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { auth, firebaseReady } from './firebase';
+import React, { useState, useEffect } from 'react';
+import { auth, db, firebaseReady } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import useIsDesktop from './hooks/useIsDesktop';
 import { buttons, colors, inputs, radius, shadows, typography } from './theme';
 
@@ -48,10 +49,20 @@ function Login({ onLoginSuccess }) {
         return;
       }
       try {
-        await signInWithEmailAndPassword(auth, email, password);
-        onLoginSuccess();
-      } catch {
-        setMessage('Invalid Login. Please check your email and password.');
+        // USER STORY 2, TEST 2: Secure login
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        const userDoc = await getDoc(doc(db, 'users', credential.user.uid));
+        const data = userDoc.exists() ? userDoc.data() : {};
+        if (data.accountStatus === 'Suspended') {
+          await auth.signOut();
+          setMessage(`Your account has been suspended. Reason: ${data.suspensionReason || 'Policy violation'}. Duration: ${data.suspensionDuration || 'Permanent'}.`);
+          return;
+        }
+        const role = data.role || 'Passenger';
+        onLoginSuccess({ role, uid: credential.user.uid });
+      } catch (error) {
+        // USER STORY 2, TEST 1: Invalid login alert
+        setMessage("Invalid Login. Please check your email and password.");
       }
     }
   };
