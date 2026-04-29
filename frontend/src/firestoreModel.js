@@ -1,9 +1,11 @@
 export const FIRESTORE_COLLECTIONS = {
+   users: 'users',
   trips: 'trips',
   vehicles: 'vehicles',
   rideRequests: 'rideRequests',
   notifications: 'notifications',
   pushTokens: 'pushTokens',
+  ratings: 'ratings',
 };
 
 export const TRIP_STATUS = {
