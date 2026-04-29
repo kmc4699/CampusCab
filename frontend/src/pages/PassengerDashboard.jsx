@@ -24,7 +24,11 @@ function formatDeparture(departureTime) {
     timeStyle: 'short',
   });
 }
-
+/**
+ * @fileoverview Main passenger dashboard component.
+ * Handles ride request monitoring, push notification setup, seat cancellation,
+ * and dynamically splits ride history based on real-time departure metrics.
+ */
 function PassengerDashboard() {
   const [upcomingRides, setUpcomingRides] = useState([]);
   const [pastRides] = useState([]);
@@ -73,7 +77,12 @@ function PassengerDashboard() {
                 : null;
               const trip = tripSnap?.exists() ? { id: tripSnap.id, ...tripSnap.data() } : null;
               
-              
+              /**
+               * SECURITY & UX CHECK: 
+               * Query the backend to see if a rating already exists for this specific seat reservation.
+               * This prevents the "Rated" button from resetting to blue if the user refreshes the page,
+               * ensuring frontend state perfectly matches persistent backend data.
+               */
               const ratingQuery = query(
                 collection(db, FIRESTORE_COLLECTIONS.ratings),
                 where('requestId', '==', requestDoc.id)
@@ -280,7 +289,12 @@ function PassengerDashboard() {
       setCancellingRideId('');
     }
   };
-
+  /**
+   * TIME-BASED RIDE FILTERING:
+   * We capture the exact local time the component renders. 
+   * This is used to automatically shift rides from the "Upcoming Rides" UI
+   * down into the "Ride History" UI the exact minute their departure time passes.
+   */
   const now = new Date();
   
   const actualUpcomingRides = upcomingRides.filter(ride => {
