@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react';
-import { auth } from '../firebase';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import { FIRESTORE_COLLECTIONS } from '../firestoreModel';
 
 const STATUS_OPTIONS = ['New', 'In-Progress', 'Resolved'];
 
@@ -89,26 +102,19 @@ export default function UserModerationPage({ userId, userName, onBack }) {
   const [showModal, setShowModal] = useState(false);
   const [suspending, setSuspending] = useState(false);
 
-  const getToken = () => auth.currentUser?.getIdToken();
-
   useEffect(() => {
     const loadData = async () => {
       try {
-        const token = await getToken();
-        const headers = { Authorization: `Bearer ${token}` };
+        const reportsSnap = await getDocs(query(
+          collection(db, FIRESTORE_COLLECTIONS.reports),
+          where('reportedUserId', '==', userId),
+          orderBy('createdAt', 'desc')
+        ));
+        setReports(reportsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
-        const [reportsRes, profileRes] = await Promise.all([
-          fetch(`/api/admin/reports/${userId}`),
-          fetch(`/api/admin/users/${userId}`, { headers }),
-        ]);
-
-        if (!reportsRes.ok) throw new Error('Failed to load reports');
-        const reportsData = await reportsRes.json();
-        setReports(reportsData);
-
-        if (profileRes.ok) {
-          const profileData = await profileRes.json();
-          setUserProfile(profileData);
+        const userSnap = await getDoc(doc(db, FIRESTORE_COLLECTIONS.users, userId));
+        if (userSnap.exists()) {
+          setUserProfile({ id: userSnap.id, ...userSnap.data() });
         }
       } catch (err) {
         setError(err.message);
@@ -120,14 +126,11 @@ export default function UserModerationPage({ userId, userName, onBack }) {
   }, [userId]);
 
   const handleStatusChange = async (reportId, newStatus) => {
+    const valid = ['New', 'In-Progress', 'Resolved'];
+    if (!valid.includes(newStatus)) return;
     setUpdating(reportId);
     try {
-      const res = await fetch(`/api/admin/reports/${reportId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) throw new Error('Update failed');
+      await updateDoc(doc(db, FIRESTORE_COLLECTIONS.reports, reportId), { status: newStatus });
       setReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r)));
     } catch (err) {
       alert('Failed to update status: ' + err.message);
@@ -139,14 +142,31 @@ export default function UserModerationPage({ userId, userName, onBack }) {
   const handleSuspend = async (duration, reason) => {
     setSuspending(true);
     try {
-      const token = await getToken();
-      const res = await fetch(`/api/admin/users/${userId}/suspend`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ reason, duration }),
+      const adminId = auth.currentUser?.uid;
+
+      await updateDoc(doc(db, FIRESTORE_COLLECTIONS.users, userId), {
+        accountStatus: 'Suspended',
+        suspensionReason: reason,
+        suspensionDuration: duration,
+        suspendedAt: new Date().toISOString(),
+        suspendedBy: adminId,
       });
-      if (!res.ok) throw new Error('Suspension failed');
-      setUserProfile((prev) => ({ ...prev, accountStatus: 'Suspended', suspensionReason: reason, suspensionDuration: duration }));
+
+      await addDoc(collection(db, FIRESTORE_COLLECTIONS.auditLogs), {
+        adminId,
+        targetUserId: userId,
+        action: 'SUSPEND',
+        reason,
+        duration,
+        timestamp: serverTimestamp(),
+      });
+
+      setUserProfile((prev) => ({
+        ...prev,
+        accountStatus: 'Suspended',
+        suspensionReason: reason,
+        suspensionDuration: duration,
+      }));
       setShowModal(false);
     } catch (err) {
       alert('Failed to suspend user: ' + err.message);
@@ -158,13 +178,31 @@ export default function UserModerationPage({ userId, userName, onBack }) {
   const handleUnsuspend = async () => {
     if (!window.confirm(`Reinstate ${userName}'s account?`)) return;
     try {
-      const token = await getToken();
-      const res = await fetch(`/api/admin/users/${userId}/unsuspend`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
+      const adminId = auth.currentUser?.uid;
+
+      await updateDoc(doc(db, FIRESTORE_COLLECTIONS.users, userId), {
+        accountStatus: 'Active',
+        suspensionReason: null,
+        suspensionDuration: null,
+        suspendedAt: null,
+        suspendedBy: null,
       });
-      if (!res.ok) throw new Error('Unsuspend failed');
-      setUserProfile((prev) => ({ ...prev, accountStatus: 'Active', suspensionReason: null, suspensionDuration: null }));
+
+      await addDoc(collection(db, FIRESTORE_COLLECTIONS.auditLogs), {
+        adminId,
+        targetUserId: userId,
+        action: 'UNSUSPEND',
+        reason: 'Manual reinstatement by admin',
+        duration: null,
+        timestamp: serverTimestamp(),
+      });
+
+      setUserProfile((prev) => ({
+        ...prev,
+        accountStatus: 'Active',
+        suspensionReason: null,
+        suspensionDuration: null,
+      }));
     } catch (err) {
       alert('Failed to unsuspend user: ' + err.message);
     }
@@ -249,8 +287,8 @@ export default function UserModerationPage({ userId, userName, onBack }) {
                   <p style={{ margin: '4px 0', color: '#444' }}>{report.reason || 'No details provided.'}</p>
                   <p style={{ margin: '8px 0 0', fontSize: 12, color: '#888' }}>
                     Reported by: {report.reporterId} &nbsp;|&nbsp;
-                    {report.createdAt?._seconds
-                      ? new Date(report.createdAt._seconds * 1000).toLocaleString()
+                    {report.createdAt?.toDate
+                      ? report.createdAt.toDate().toLocaleString()
                       : 'Unknown date'}
                   </p>
                 </div>
