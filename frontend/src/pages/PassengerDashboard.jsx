@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   collection,
   doc,
@@ -18,16 +18,34 @@ import SearchTrips from './SearchTrips';
 import LeaveRatingModal from '../components/LeaveRatingModal';
 
 function formatDeparture(departureTime) {
-  if (!departureTime) return 'Departure time unavailable';
-  return new Date(departureTime).toLocaleString([], {
+  const date = getDepartureDate(departureTime);
+  if (!date) return 'Departure time unavailable';
+  return date.toLocaleString([], {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
 }
 
+function getDepartureDate(departureTime) {
+  if (!departureTime) return null;
+
+  const date = departureTime?.toDate?.() || new Date(departureTime);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isPastRide(ride, now = new Date()) {
+  const departureDate = getDepartureDate(ride.trip?.departureTime);
+  return Boolean(departureDate && departureDate <= now);
+}
+
+function sortByDepartureTime(a, b) {
+  const firstDeparture = getDepartureDate(a.trip?.departureTime)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  const secondDeparture = getDepartureDate(b.trip?.departureTime)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  return firstDeparture - secondDeparture;
+}
+
 function PassengerDashboard() {
   const [upcomingRides, setUpcomingRides] = useState([]);
-  const [pastRides] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -85,9 +103,7 @@ function PassengerDashboard() {
             }),
           );
 
-          const sortedRides = rideDocs.sort((a, b) =>
-            (a.trip?.departureTime || '').localeCompare(b.trip?.departureTime || ''),
-          );
+          const sortedRides = rideDocs.sort(sortByDepartureTime);
           setUpcomingRides(sortedRides);
           setMessage((currentMessage) =>
             currentMessage === 'Your seat reservation was cancelled.' ? currentMessage : '',
@@ -281,17 +297,20 @@ function PassengerDashboard() {
     }
   };
 
-  const now = new Date();
-  
-  const actualUpcomingRides = upcomingRides.filter(ride => {
-    if (!ride.trip?.departureTime) return false;
-    return new Date(ride.trip.departureTime) > now;
-  });
-
-  const actualPastRides = upcomingRides.filter(ride => {
-    if (!ride.trip?.departureTime) return false;
-    return new Date(ride.trip.departureTime) <= now;
-  });
+  const { actualUpcomingRides, actualPastRides } = useMemo(() => {
+    const now = new Date();
+    return upcomingRides.reduce(
+      (rides, ride) => {
+        if (isPastRide(ride, now)) {
+          rides.actualPastRides.push(ride);
+        } else {
+          rides.actualUpcomingRides.push(ride);
+        }
+        return rides;
+      },
+      { actualUpcomingRides: [], actualPastRides: [] },
+    );
+  }, [upcomingRides]);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
