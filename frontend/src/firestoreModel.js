@@ -5,6 +5,8 @@ export const FIRESTORE_COLLECTIONS = {
   notifications: 'notifications',
   pushTokens: 'pushTokens',
   users: 'users',
+  reports: 'reports',
+  auditLogs: 'auditLogs',
 };
 
 export const TRIP_STATUS = {
