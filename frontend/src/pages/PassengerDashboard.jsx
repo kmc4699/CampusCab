@@ -3,6 +3,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
@@ -14,6 +15,7 @@ import { auth, db, firebaseReady } from '../firebase';
 import { FIRESTORE_COLLECTIONS, NOTIFICATION_STATUS, RIDE_REQUEST_STATUS } from '../firestoreModel';
 import { registerBrowserPushToken } from '../utils/pushNotifications';
 import SearchTrips from './SearchTrips';
+import LeaveRatingModal from '../components/LeaveRatingModal';
 
 function formatDeparture(departureTime) {
   if (!departureTime) return 'Departure time unavailable';
@@ -33,6 +35,9 @@ function PassengerDashboard() {
   const [cancellingRideId, setCancellingRideId] = useState('');
   const [pushStatus, setPushStatus] = useState('idle');
   const [pushMessage, setPushMessage] = useState('');
+  
+  const [ratingModalRide, setRatingModalRide] = useState(null); 
+  const [ratedRideIds, setRatedRideIds] = useState([]);
 
   useEffect(() => {
     if (!firebaseReady || !auth || !db) {
@@ -67,7 +72,16 @@ function PassengerDashboard() {
                 ? await getDoc(doc(db, FIRESTORE_COLLECTIONS.trips, request.tripId))
                 : null;
               const trip = tripSnap?.exists() ? { id: tripSnap.id, ...tripSnap.data() } : null;
-              return { ...request, trip };
+              
+              
+              const ratingQuery = query(
+                collection(db, FIRESTORE_COLLECTIONS.ratings),
+                where('requestId', '==', requestDoc.id)
+              );
+              const ratingSnap = await getDocs(ratingQuery);
+              const hasRated = !ratingSnap.empty;
+
+              return { ...request, trip, hasRated };
             }),
           );
 
@@ -267,6 +281,18 @@ function PassengerDashboard() {
     }
   };
 
+  const now = new Date();
+  
+  const actualUpcomingRides = upcomingRides.filter(ride => {
+    if (!ride.trip?.departureTime) return false;
+    return new Date(ride.trip.departureTime) > now;
+  });
+
+  const actualPastRides = upcomingRides.filter(ride => {
+    if (!ride.trip?.departureTime) return false;
+    return new Date(ride.trip.departureTime) <= now;
+  });
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
       <header style={{ borderBottom: '1px solid #eee', paddingBottom: '20px', marginBottom: '30px' }}>
@@ -381,7 +407,6 @@ function PassengerDashboard() {
         {/* Left Column: Search & Action Area */}
         <section>
           <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
-            {/* Embed the SearchTrips component directly or use a Link to navigate to it */}
             <SearchTrips />
           </div>
         </section>
@@ -395,11 +420,11 @@ function PassengerDashboard() {
               {/* Upcoming Rides */}
               <div style={{ marginBottom: '30px' }}>
                 <h2>Upcoming Rides</h2>
-                {upcomingRides.length === 0 ? (
+                {actualUpcomingRides.length === 0 ? (
                   <p style={{ color: '#666' }}>You have no upcoming rides booked.</p>
                 ) : (
                   <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {upcomingRides.map((ride) => (
+                    {actualUpcomingRides.map((ride) => (
                       <li
                         key={ride.id}
                         style={{
@@ -442,22 +467,54 @@ function PassengerDashboard() {
                 )}
               </div>
 
-              {/* Past Rides */}
+              {/* Past Rides & Ratings */}
               <div>
                 <h2>Ride History</h2>
-                {pastRides.length === 0 ? (
+                {actualPastRides.length === 0 ? (
                   <p style={{ color: '#666' }}>You have no past rides.</p>
                 ) : (
                   <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {pastRides.map(ride => (
-                      <li key={ride.id} style={{ padding: '15px', border: '1px solid #eee', borderRadius: '5px', marginBottom: '10px' }}>
-                        {/* TODO: Create a PastRideCard component */}
-                        <strong>{ride.destination}</strong> - {ride.date}
-                      </li>
-                    ))}
+                    {actualPastRides.map(ride => {
+                      const isRated = ratedRideIds.includes(ride.id) || ride.hasRated;
+                      return (
+                        <li key={`past-${ride.id}`} style={{ padding: '15px', border: '1px solid #eee', borderRadius: '5px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <strong>{ride.trip?.destination || 'Unknown destination'}</strong>
+                            <div style={{ color: '#555', fontSize: '0.9rem' }}>{formatDeparture(ride.trip?.departureTime)}</div>
+                          </div>
+                          
+                          <button 
+                            onClick={() => setRatingModalRide(ride)}
+                            disabled={isRated}
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              backgroundColor: isRated ? '#e5e7eb' : '#2563eb',
+                              color: isRated ? '#9ca3af' : '#fff',
+                              cursor: isRated ? 'not-allowed' : 'pointer',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            {isRated ? 'Rated ★' : 'Leave Rating'}
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
+
+              {/* Render the Rating Modal if active */}
+              {ratingModalRide && (
+                <LeaveRatingModal 
+                  ride={ratingModalRide} 
+                  onClose={() => setRatingModalRide(null)}
+                  onRatingSubmitted={(rideId) => {
+                    setRatedRideIds(prev => [...prev, rideId]);
+                  }}
+                />
+              )}
             </>
           )}
         </section>
