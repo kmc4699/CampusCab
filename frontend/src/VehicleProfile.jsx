@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Component for users to create and update their driver vehicle profile.
+ * Saves vehicle data (make, model, license plate) to the Firestore 'vehicles' collection.
+ */
+
+
 import React, { useState } from 'react';
 import { db, auth } from './firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -13,7 +19,10 @@ function Field({ label, helper, children }) {
     </div>
   );
 }
-
+/**
+ * A customized text input field that applies theme-specific focus styling.
+ * @param {Object} props - Standard HTML input properties.
+ */
 function TextInput({ value, onChange, placeholder, required = false, ...rest }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -33,7 +42,14 @@ function TextInput({ value, onChange, placeholder, required = false, ...rest }) 
     />
   );
 }
-
+/**
+ * Main VehicleProfile component.
+ * Allows authenticated drivers to submit or edit their vehicle details.
+ * @param {Object} props
+ * @param {Object} [props.initialVehicle] - Optional pre-existing vehicle data to pre-fill the form.
+ * @param {Function} [props.onSaved] - Callback fired when vehicle data is successfully saved.
+ * @param {boolean} [props.compact=false] - If true, hides the "Saved" preview card to save UI space.
+ */
 function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
   const [make, setMake] = useState(initialVehicle?.make || '');
   const [model, setModel] = useState(initialVehicle?.model || '');
@@ -43,7 +59,11 @@ function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
   const [isSaving, setIsSaving] = useState(false);
 
   const isButtonDisabled = licensePlate.trim() === '' || isSaving;
-
+  /**
+   * Validates inputs and pushes the vehicle data to the Firestore 'vehicles' collection.
+   * Uses setDoc to cleanly overwrite/update the user's vehicle document.
+   * @param {Event} e - Form submission event.
+   */
   const handleSave = async (e) => {
     e.preventDefault();
     setMessage('');
@@ -158,7 +178,12 @@ function VehicleProfile({ initialVehicle = null, onSaved, compact = false }) {
     </div>
   );
 }
-
+/**
+ * Helper component for displaying key-value pairs in the saved vehicle preview card.
+ * @param {Object} props
+ * @param {string} props.label - The label for the data point.
+ * @param {string} props.value - The value of the data point.
+ */
 function ProfileItem({ label, value }) {
   return (
     <div>
