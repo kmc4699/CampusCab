@@ -1,5 +1,14 @@
+/**
+ * @fileoverview Defines the core Firestore database schema and enums used across the CampusCab application.
+ * Centralizing these values prevents typos and makes refactoring easier.
+ */
+
+/**
+ * Standardized collection names mapped to their Firestore string values.
+ * @constant {Object}
+ */
 export const FIRESTORE_COLLECTIONS = {
-   users: 'users',
+  users: 'users',
   trips: 'trips',
   vehicles: 'vehicles',
   rideRequests: 'rideRequests',
@@ -8,12 +17,20 @@ export const FIRESTORE_COLLECTIONS = {
   ratings: 'ratings',
 };
 
+/**
+ * Represents the lifecycle status of a Trip (e.g. if the car is full).
+ * @constant {Object}
+ */
 export const TRIP_STATUS = {
   active: 'active',
   full: 'full',
   cancelled: 'cancelled',
 };
 
+/**
+ * Represents the approval lifecycle of a passenger's request to join a trip.
+ * @constant {Object}
+ */
 export const RIDE_REQUEST_STATUS = {
   pending: 'pending',
   approved: 'approved',
@@ -21,7 +38,12 @@ export const RIDE_REQUEST_STATUS = {
   cancelled: 'cancelled',
 };
 
+/**
+ * Represents the read state of a push notification.
+ * @constant {Object}
+ */
 export const NOTIFICATION_STATUS = {
   unread: 'unread',
   read: 'read',
 };
+
