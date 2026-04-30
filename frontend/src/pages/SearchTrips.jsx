@@ -8,7 +8,7 @@ import {
   RIDE_REQUEST_STATUS,
 } from '../firestoreModel';
 import { colors, radius, spacing, typography, surfaces, buttons, inputs, pills, shadows } from '../theme';
-import { AddressSearch } from '../components/MapComponents';
+import { AddressSearch, AUT_CAMPUSES } from '../components/MapComponents';
 import * as turf from '@turf/turf';
 
 function isSameDepartureDate(departureTime, selectedDate) {
@@ -195,9 +195,9 @@ const SearchTrips = () => {
               style={{ ...inputs.field, cursor: 'pointer' }}
             >
               <option value="">Select a Campus</option>
-              <option value="City Campus">City Campus</option>
-              <option value="South Campus">South Campus</option>
-              <option value="North Campus">North Campus</option>
+              <option value={AUT_CAMPUSES[0].display_name}>City Campus</option>
+              <option value={AUT_CAMPUSES[2].display_name}>South Campus</option>
+              <option value={AUT_CAMPUSES[1].display_name}>North Campus</option>
             </select>
           </div>
 

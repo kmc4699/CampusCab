@@ -60,6 +60,11 @@ service cloud.firestore {
       allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
     }
 
+    // Ratings
+    match /ratings/{ratingId} {
+      allow read, create: if request.auth != null;
+    }
+
     // Reports — admin read/update for moderation dashboard
     match /reports/{reportId} {
       allow read: if isAdmin();
