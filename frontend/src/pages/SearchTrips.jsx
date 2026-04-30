@@ -27,7 +27,7 @@ function formatDeparture(departureTime) {
   });
 }
 
-const SearchTrips = () => {
+const SearchTrips = ({ onTripSelect }) => {
   const [campus, setCampus] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -36,15 +36,12 @@ const SearchTrips = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
-  const [selectedTripId, setSelectedTripId] = useState(null);
-  const [seatsToBook, setSeatsToBook] = useState(1);
 
   const handleSearch = async (e) => {
     e.preventDefault();
     setError('');
     setHasSearched(true);
     setLoading(true);
-    setSelectedTripId(null);
 
     try {
       if (!firebaseReady || !db) {
@@ -73,7 +70,8 @@ const SearchTrips = () => {
         const data = doc.data();
         if (isSameDepartureDate(data.departureTime, date) && hasAvailableSeats(data)) {
           const tripDateTime = new Date(data.departureTime);
-          if (tripDateTime >= selectedDateTime) {
+          const now = new Date();
+          if (tripDateTime >= selectedDateTime && tripDateTime > now) {
             
             // Check 10km radius if the trip has a routeGeoJson and passenger provided a location
             let distanceKm = null;
@@ -103,68 +101,6 @@ const SearchTrips = () => {
     } catch (err) {
       console.error(err);
       setError(err.message || 'An error occurred while searching for trips.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBookTrip = async (trip, requestedSeats) => {
-    if (!firebaseReady || !db || !auth) {
-      alert('Demo mode: Booking request simulated.');
-      setSelectedTripId(null);
-      return;
-    }
-
-    const user = auth.currentUser;
-    if (!user) {
-      setError('You must be signed in to book a ride.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const requestsRef = collection(db, FIRESTORE_COLLECTIONS.rideRequests);
-      const requestRef = doc(requestsRef);
-      const notificationRef = doc(collection(db, FIRESTORE_COLLECTIONS.notifications));
-      const passengerName = user.displayName || 'Passenger';
-      const passengerEmail = user.email || '';
-      const tripOwnerId = trip.driverId || 'unknown_driver';
-      const batch = writeBatch(db);
-
-      batch.set(requestRef, {
-        tripId: trip.id,
-        tripOwnerId,
-        passengerId: user.uid,
-        passengerName,
-        passengerEmail,
-        status: RIDE_REQUEST_STATUS.pending,
-        createdAt: serverTimestamp(),
-        note: `Requested ${requestedSeats} seat(s)`,
-        seatsRequested: requestedSeats
-      });
-      batch.set(notificationRef, {
-        type: 'ride_request',
-        recipientId: tripOwnerId,
-        tripId: trip.id,
-        requestId: requestRef.id,
-        passengerId: user.uid,
-        passengerName,
-        passengerEmail,
-        seatsRequested: requestedSeats,
-        status: NOTIFICATION_STATUS.unread,
-        message: `${passengerName} requested ${requestedSeats} seat(s).`,
-        createdAt: serverTimestamp(),
-      });
-
-      await batch.commit();
-
-      alert('Booking request sent successfully!');
-      setSelectedTripId(null);
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'An error occurred while sending the booking request.');
     } finally {
       setLoading(false);
     }
@@ -264,25 +200,30 @@ const SearchTrips = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
             <h3 style={{ ...typography.h2, marginBottom: spacing.sm }}>Available Rides</h3>
             {trips.map((trip) => {
-              const isSelected = selectedTripId === trip.id;
               return (
                 <div 
                   key={trip.id} 
                   onClick={() => {
-                    setSelectedTripId(trip.id);
-                    setSeatsToBook(1);
+                    if (onTripSelect) onTripSelect(trip);
                   }}
                   style={{ 
                     ...surfaces.innerCard,
                     padding: spacing.lg,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease-in-out',
-                    border: isSelected ? `2px solid ${colors.accent}` : surfaces.innerCard.border,
-                    boxShadow: isSelected ? shadows.soft : 'none',
-                    backgroundColor: isSelected ? colors.surfaceSolid : colors.surfaceMuted,
+                    border: surfaces.innerCard.border,
+                    backgroundColor: colors.surfaceMuted,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = colors.surfaceSolid;
+                    e.currentTarget.style.boxShadow = shadows.soft;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = colors.surfaceMuted;
+                    e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.sm }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <div style={{ ...typography.small, color: colors.textSubtle, marginBottom: '4px', fontWeight: 600 }}>
                         {formatDeparture(trip.departureTime)}
@@ -290,50 +231,16 @@ const SearchTrips = () => {
                       <div style={{ ...typography.h3, marginBottom: spacing.xs }}>
                         {trip.origin} <span style={{ color: colors.textSubtle }}>→</span> {trip.destination}
                       </div>
+                      {trip.distanceKm !== null && (
+                        <div style={{ ...typography.small, color: colors.textSubtle, marginTop: '4px' }}>
+                          <strong>Proximity:</strong> Approx. {trip.distanceKm.toFixed(1)} km from your pickup location
+                        </div>
+                      )}
                     </div>
                     <div style={{ ...pills.base, ...pills.accent }}>
                       {trip.availableSeats} seat{trip.availableSeats > 1 ? 's' : ''}
                     </div>
                   </div>
-
-                  {isSelected && (
-                    <div style={{ 
-                      marginTop: spacing.md, 
-                      paddingTop: spacing.md, 
-                      borderTop: `1px solid ${colors.border}`,
-                      animation: 'fadeIn 0.3s ease'
-                    }}>
-                      <div style={{ marginBottom: spacing.md, ...typography.small, color: colors.textSubtle }}>
-                        <strong>Driver:</strong> {trip.driverEmail} <br/>
-                        {trip.distanceKm !== null && (
-                          <span><strong>Proximity:</strong> Approx. {trip.distanceKm.toFixed(1)} km from your pickup location.</span>
-                        )}
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg }}>
-                        <label htmlFor={`seats-${trip.id}`} style={{ ...inputs.label, marginBottom: 0 }}>Seats to book</label>
-                        <input
-                          id={`seats-${trip.id}`}
-                          type="number"
-                          min="1"
-                          max={trip.availableSeats}
-                          value={seatsToBook}
-                          onChange={(e) => setSeatsToBook(Number(e.target.value))}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ ...inputs.field, width: '80px', padding: '10px 14px', textAlign: 'center' }}
-                        />
-                      </div>
-                      <button 
-                        style={{ ...buttons.primary, padding: '12px 20px', fontSize: '0.9rem' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBookTrip(trip, seatsToBook);
-                        }}
-                      >
-                        Request to Book
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })}
