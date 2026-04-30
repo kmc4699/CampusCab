@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { inputs, surfaces, colors, radius, typography } from '../theme';
@@ -15,28 +15,63 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+const AUT_CAMPUSES = [
+  { display_name: "AUT City Campus (55 Wellesley St E, Auckland CBD)", lat: -36.8532, lon: 174.7666 },
+  { display_name: "AUT North Campus (90 Akoranga Dr, Northcote)", lat: -36.8016, lon: 174.7497 },
+  { display_name: "AUT South Campus (640 Great South Rd, Manukau)", lat: -36.9841, lon: 174.8805 }
+];
+
 export function AddressSearch({ label, onSelect, placeholder }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
+  const debounceTimer = useRef(null);
 
-  const search = async (text) => {
+  const search = (text) => {
     setQuery(text);
-    if (text.length < 3) {
-      setResults([]);
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    if (text.length < 2) {
+      setResults(AUT_CAMPUSES);
       return;
     }
-    setLoading(true);
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=5`);
-      const data = await res.json();
-      setResults(data);
-    } catch (e) {
-      console.error('Geocoding error', e);
-    } finally {
-      setLoading(false);
-    }
+
+    debounceTimer.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const lowerText = text.toLowerCase();
+        const predefined = AUT_CAMPUSES.filter(c => 
+          c.display_name.toLowerCase().includes(lowerText) || 
+          lowerText.includes('aut') || 
+          lowerText.includes('campus')
+        );
+
+        // Append 'Auckland' to the query to prioritize Auckland region, and use countrycodes=nz to exclude other countries.
+        const searchQuery = lowerText.includes('auckland') ? text : `${text}, Auckland`;
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&countrycodes=nz&limit=5`);
+        
+        if (!res.ok) throw new Error('Geocoding failed');
+        
+        const data = await res.json();
+        const apiResults = Array.isArray(data) ? data : [];
+        
+        setResults([...predefined, ...apiResults].slice(0, 8));
+      } catch (e) {
+        console.error('Geocoding error', e);
+        const lowerText = text.toLowerCase();
+        const predefined = AUT_CAMPUSES.filter(c => 
+          c.display_name.toLowerCase().includes(lowerText) || 
+          lowerText.includes('aut') || 
+          lowerText.includes('campus')
+        );
+        setResults(predefined);
+      } finally {
+        setLoading(false);
+      }
+    }, 500); // 500ms debounce prevents API rate limiting
   };
 
   return (
@@ -47,7 +82,12 @@ export function AddressSearch({ label, onSelect, placeholder }) {
         placeholder={placeholder}
         value={query}
         onChange={(e) => search(e.target.value)}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          if (query.length < 2) {
+            setResults(AUT_CAMPUSES);
+          }
+        }}
         style={{ ...inputs.field, ...(focused ? inputs.fieldFocus : {}) }}
       />
       {focused && results.length > 0 && (

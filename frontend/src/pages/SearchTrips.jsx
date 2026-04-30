@@ -80,7 +80,8 @@ const SearchTrips = () => {
             let withinRange = true;
 
             if (data.routeGeoJson && passengerPt) {
-              const routeLine = turf.lineString(data.routeGeoJson.coordinates);
+              const parsedGeoJson = typeof data.routeGeoJson === 'string' ? JSON.parse(data.routeGeoJson) : data.routeGeoJson;
+              const routeLine = turf.lineString(parsedGeoJson.coordinates);
               distanceKm = turf.pointToLineDistance(passengerPt, routeLine, { units: 'kilometers' });
               
               if (distanceKm > 10) {
