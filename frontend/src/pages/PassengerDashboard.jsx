@@ -15,6 +15,7 @@ import { auth, db, firebaseReady } from '../firebase';
 import { FIRESTORE_COLLECTIONS, NOTIFICATION_STATUS, RIDE_REQUEST_STATUS } from '../firestoreModel';
 import { registerBrowserPushToken } from '../utils/pushNotifications';
 import SearchTrips from './SearchTrips';
+import TripDetails from './TripDetails';
 import LeaveRatingModal from '../components/LeaveRatingModal';
 
 function formatDeparture(departureTime) {
@@ -39,6 +40,7 @@ function PassengerDashboard() {
   const [cancellingRideId, setCancellingRideId] = useState('');
   const [pushStatus, setPushStatus] = useState('idle');
   const [pushMessage, setPushMessage] = useState('');
+  const [viewingTrip, setViewingTrip] = useState(null);
   
   const [ratingModalRide, setRatingModalRide] = useState(null); 
   const [ratedRideIds, setRatedRideIds] = useState([]);
@@ -307,12 +309,12 @@ function PassengerDashboard() {
   
   const actualUpcomingRides = upcomingRides.filter(ride => {
     if (!ride.trip?.departureTime) return false;
-    return new Date(ride.trip.departureTime) > now;
+    return new Date(ride.trip.departureTime) > now || ride.status === RIDE_REQUEST_STATUS.pending;
   });
 
   const actualPastRides = upcomingRides.filter(ride => {
     if (!ride.trip?.departureTime) return false;
-    return new Date(ride.trip.departureTime) <= now;
+    return new Date(ride.trip.departureTime) <= now && ride.status === RIDE_REQUEST_STATUS.approved;
   });
 
   return (
@@ -425,13 +427,19 @@ function PassengerDashboard() {
         </button>
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
-        {/* Left Column: Search & Action Area */}
-        <section>
-          <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
-            <SearchTrips />
-          </div>
-        </section>
+      {viewingTrip ? (
+        <TripDetails 
+          trip={viewingTrip} 
+          onBack={() => setViewingTrip(null)} 
+        />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+          {/* Left Column: Search & Action Area */}
+          <section>
+            <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
+              <SearchTrips onTripSelect={setViewingTrip} />
+            </div>
+          </section>
 
         {/* Right Column: Bookings Area */}
         <section>
@@ -553,6 +561,7 @@ function PassengerDashboard() {
           )}
         </section>
       </div>
+      )}
 
       {rideToCancel && (
         <div
