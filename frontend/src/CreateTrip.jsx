@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Component for drivers to create and publish new trips.
+ * Integrates map routing, address searching, and Firestore database publishing.
+ */
+
+
 import React, { useState } from 'react';
 import { db, auth, firebaseReady } from './firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
@@ -15,7 +21,10 @@ function Field({ label, helper, children }) {
     </div>
   );
 }
-
+/**
+ * A customized input field that applies theme-specific focus styling.
+ * @param {Object} props - Standard HTML input properties.
+ */
 function StyledInput(props) {
   const [focused, setFocused] = useState(false);
   return (
@@ -37,7 +46,10 @@ function StyledInput(props) {
     />
   );
 }
-
+/**
+ * A customized select dropdown that applies theme-specific styling and custom chevron icon.
+ * @param {Object} props - Standard HTML select properties.
+ */
 function StyledSelect(props) {
   const [focused, setFocused] = useState(false);
   return (
@@ -65,7 +77,11 @@ function StyledSelect(props) {
     />
   );
 }
-
+/**
+ * Main CreateTrip component.
+ * Allows authenticated drivers to select origin/destination, calculate routes via map integration,
+ * and publish trips to the Firestore database.
+ */
 function CreateTrip() {
   const [origin, setOrigin] = useState(null);
   const [destination, setDestination] = useState(null);
@@ -76,7 +92,11 @@ function CreateTrip() {
   const [recentTrip, setRecentTrip] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isDesktop = useIsDesktop();
-
+  /**
+   * Validates form inputs and submits the new trip payload to Firestore.
+   * Also handles a "demo mode" fallback if Firebase is not connected locally.
+   * @param {Event} e - Form submission event.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
