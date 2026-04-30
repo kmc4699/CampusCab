@@ -15,7 +15,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-const AUT_CAMPUSES = [
+export const AUT_CAMPUSES = [
   { display_name: "AUT City Campus (55 Wellesley St E, Auckland CBD)", lat: -36.8532, lon: 174.7666 },
   { display_name: "AUT North Campus (90 Akoranga Dr, Northcote)", lat: -36.8016, lon: 174.7497 },
   { display_name: "AUT South Campus (640 Great South Rd, Manukau)", lat: -36.9841, lon: 174.8805 }

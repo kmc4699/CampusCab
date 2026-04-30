@@ -59,8 +59,7 @@ function PassengerDashboard() {
 
     const approvedRequestsQuery = query(
       collection(db, FIRESTORE_COLLECTIONS.rideRequests),
-      where('passengerId', '==', user.uid),
-      where('status', '==', RIDE_REQUEST_STATUS.approved),
+      where('passengerId', '==', user.uid)
     );
 
     setLoading(true);
@@ -72,6 +71,14 @@ function PassengerDashboard() {
           const rideDocs = await Promise.all(
             snapshot.docs.map(async (requestDoc) => {
               const request = { id: requestDoc.id, ...requestDoc.data() };
+              
+              if (
+                request.status !== RIDE_REQUEST_STATUS.approved &&
+                request.status !== RIDE_REQUEST_STATUS.pending
+              ) {
+                return null;
+              }
+
               const tripSnap = request.tripId
                 ? await getDoc(doc(db, FIRESTORE_COLLECTIONS.trips, request.tripId))
                 : null;
@@ -94,7 +101,8 @@ function PassengerDashboard() {
             }),
           );
 
-          const sortedRides = rideDocs.sort((a, b) =>
+          const validRides = rideDocs.filter(Boolean);
+          const sortedRides = validRides.sort((a, b) =>
             (a.trip?.departureTime || '').localeCompare(b.trip?.departureTime || ''),
           );
           setUpcomingRides(sortedRides);
@@ -427,6 +435,11 @@ function PassengerDashboard() {
 
         {/* Right Column: Bookings Area */}
         <section>
+          {message && (
+            <div style={{ backgroundColor: '#fee2e2', color: '#991b1b', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px' }}>
+              {message}
+            </div>
+          )}
           {loading ? (
             <p>Loading your rides...</p>
           ) : (
@@ -456,7 +469,14 @@ function PassengerDashboard() {
                           {formatDeparture(ride.trip?.departureTime)}
                         </div>
                         <div style={{ color: '#555', marginTop: '6px' }}>
-                          {ride.seatsRequested || 1} seat(s) reserved
+                          {ride.seatsRequested || 1} seat(s) requested
+                        </div>
+                        <div style={{ 
+                          color: ride.status === RIDE_REQUEST_STATUS.pending ? '#d97706' : '#059669', 
+                          fontWeight: 'bold', 
+                          marginTop: '6px' 
+                        }}>
+                          Status: {ride.status === RIDE_REQUEST_STATUS.pending ? 'Pending Approval' : 'Approved'}
                         </div>
                         <button
                           type="button"
