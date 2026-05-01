@@ -19,6 +19,7 @@ import {
 import useIsDesktop from '../hooks/useIsDesktop';
 import { buttons, colors, pills, radius, shadows, typography } from '../theme';
 import { registerBrowserPushToken } from '../utils/pushNotifications';
+import ReportUserModal from '../components/ReportUserModal';
 
 function getTripTimeValue(trip) {
   const date = trip.createdAt?.toDate?.() || new Date(trip.createdAt || trip.departureTime || 0);
@@ -45,6 +46,8 @@ function DriverDashboard() {
   const [busyRequestId, setBusyRequestId] = useState('');
   const [busyTripId, setBusyTripId] = useState('');
   const [tripToCancel, setTripToCancel] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportedPassengerIds, setReportedPassengerIds] = useState([]);
   const [pushStatus, setPushStatus] = useState('idle');
   const [pushMessage, setPushMessage] = useState('');
   const isDesktop = useIsDesktop();
@@ -1015,15 +1018,82 @@ function DriverDashboard() {
           border: `1px solid ${colors.border}`,
         }}
       >
-        <div style={{ ...typography.eyebrow, color: colors.info, marginBottom: '4px' }}>
+        <div style={{ ...typography.eyebrow, color: colors.info, marginBottom: '8px' }}>
           Approved riders
         </div>
-        <div style={{ ...typography.body, margin: 0 }}>
-          {approvedRequests.length === 0
-            ? 'Approved passengers will appear here once you accept them.'
-            : `${approvedRequests.length} passenger(s) confirmed across your trips.`}
-        </div>
+        {approvedRequests.length === 0 ? (
+          <div style={{ ...typography.body, margin: 0 }}>
+            Approved passengers will appear here once you accept them.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {approvedRequests.map((request) => {
+              const trip = tripsById[request.tripId];
+              const alreadyReported = reportedPassengerIds.includes(request.passengerId);
+              return (
+                <div
+                  key={request.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    borderRadius: radius.md,
+                    backgroundColor: colors.surfaceSolid,
+                    border: `1px solid ${colors.border}`,
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ ...typography.h3, margin: 0, fontSize: '0.9rem' }}>
+                      {request.passengerName || request.passengerEmail || 'Passenger'}
+                    </div>
+                    <div style={{ color: colors.textSubtle, fontSize: '0.8rem', marginTop: '2px' }}>
+                      {trip?.origin || '?'} → {trip?.destination || '?'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={alreadyReported}
+                    onClick={() =>
+                      setReportTarget({
+                        userId: request.passengerId,
+                        userName: request.passengerName || request.passengerEmail || 'Passenger',
+                        tripId: request.tripId,
+                      })
+                    }
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(220, 38, 38, 0.35)',
+                      backgroundColor: alreadyReported ? '#f3f4f6' : '#fff',
+                      color: alreadyReported ? '#9ca3af' : '#dc2626',
+                      cursor: alreadyReported ? 'not-allowed' : 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.82rem',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {alreadyReported ? 'Reported' : 'Report'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {reportTarget && (
+        <ReportUserModal
+          reportedUserId={reportTarget.userId}
+          reportedUserName={reportTarget.userName}
+          reporterId={auth.currentUser?.uid}
+          tripId={reportTarget.tripId}
+          onClose={() => setReportTarget(null)}
+          onReported={() => setReportedPassengerIds((prev) => [...prev, reportTarget.userId])}
+        />
+      )}
 
       {tripToCancel && (
         <div
