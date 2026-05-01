@@ -17,6 +17,7 @@ import { registerBrowserPushToken } from '../utils/pushNotifications';
 import SearchTrips from './SearchTrips';
 import TripDetails from './TripDetails';
 import LeaveRatingModal from '../components/LeaveRatingModal';
+import ReportUserModal from '../components/ReportUserModal';
 
 function formatDeparture(departureTime) {
   if (!departureTime) return 'Departure time unavailable';
@@ -42,8 +43,10 @@ function PassengerDashboard() {
   const [pushMessage, setPushMessage] = useState('');
   const [viewingTrip, setViewingTrip] = useState(null);
   
-  const [ratingModalRide, setRatingModalRide] = useState(null); 
+  const [ratingModalRide, setRatingModalRide] = useState(null);
   const [ratedRideIds, setRatedRideIds] = useState([]);
+  const [reportModalRide, setReportModalRide] = useState(null);
+  const [reportedRideIds, setReportedRideIds] = useState([]);
 
   useEffect(() => {
     if (!firebaseReady || !auth || !db) {
@@ -518,28 +521,45 @@ function PassengerDashboard() {
                   <ul style={{ listStyle: 'none', padding: 0 }}>
                     {actualPastRides.map(ride => {
                       const isRated = ratedRideIds.includes(ride.id) || ride.hasRated;
+                      const isReported = reportedRideIds.includes(ride.id);
                       return (
-                        <li key={`past-${ride.id}`} style={{ padding: '15px', border: '1px solid #eee', borderRadius: '5px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <li key={`past-${ride.id}`} style={{ padding: '15px', border: '1px solid #eee', borderRadius: '5px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                           <div>
                             <strong>{ride.trip?.destination || 'Unknown destination'}</strong>
                             <div style={{ color: '#555', fontSize: '0.9rem' }}>{formatDeparture(ride.trip?.departureTime)}</div>
                           </div>
-                          
-                          <button 
-                            onClick={() => setRatingModalRide(ride)}
-                            disabled={isRated}
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: '8px',
-                              border: 'none',
-                              backgroundColor: isRated ? '#e5e7eb' : '#2563eb',
-                              color: isRated ? '#9ca3af' : '#fff',
-                              cursor: isRated ? 'not-allowed' : 'pointer',
-                              fontWeight: 'bold'
-                            }}
-                          >
-                            {isRated ? 'Rated ★' : 'Leave Rating'}
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => setRatingModalRide(ride)}
+                              disabled={isRated}
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                backgroundColor: isRated ? '#e5e7eb' : '#2563eb',
+                                color: isRated ? '#9ca3af' : '#fff',
+                                cursor: isRated ? 'not-allowed' : 'pointer',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              {isRated ? 'Rated ★' : 'Leave Rating'}
+                            </button>
+                            <button
+                              onClick={() => setReportModalRide(ride)}
+                              disabled={isReported}
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                border: '1px solid rgba(220, 38, 38, 0.35)',
+                                backgroundColor: isReported ? '#f3f4f6' : '#fff',
+                                color: isReported ? '#9ca3af' : '#dc2626',
+                                cursor: isReported ? 'not-allowed' : 'pointer',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              {isReported ? 'Reported' : 'Report Driver'}
+                            </button>
+                          </div>
                         </li>
                       );
                     })}
@@ -547,14 +567,24 @@ function PassengerDashboard() {
                 )}
               </div>
 
-              {/* Render the Rating Modal if active */}
               {ratingModalRide && (
-                <LeaveRatingModal 
-                  ride={ratingModalRide} 
+                <LeaveRatingModal
+                  ride={ratingModalRide}
                   onClose={() => setRatingModalRide(null)}
                   onRatingSubmitted={(rideId) => {
                     setRatedRideIds(prev => [...prev, rideId]);
                   }}
+                />
+              )}
+
+              {reportModalRide && (
+                <ReportUserModal
+                  reportedUserId={reportModalRide.tripOwnerId || reportModalRide.trip?.driverId}
+                  reportedUserName={reportModalRide.trip?.driverName || 'Driver'}
+                  reporterId={auth.currentUser?.uid}
+                  tripId={reportModalRide.tripId}
+                  onClose={() => setReportModalRide(null)}
+                  onReported={() => setReportedRideIds(prev => [...prev, reportModalRide.id])}
                 />
               )}
             </>
